@@ -1,0 +1,89 @@
+# Verification matrix for StackPulse. Local file — not yet pushed or enabled.
+# The macOS and Windows jobs are the outstanding 3.3.0 release gate (Linux verified locally).
+# The interactive-wizard step needs a POSIX PTY; on Windows the wizard must be checked by hand.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / Node ${{ matrix.node }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: ['20.12', '22', '24', '26']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: Install the sqlite3 CLI (fallback SQLite backend; Node 20 has no node:sqlite)
+        shell: bash
+        run: |
+          case "$RUNNER_OS" in
+            Linux)   sudo apt-get update && sudo apt-get install -y sqlite3 ;;
+            Windows) choco install sqlite -y --no-progress ;;
+            macOS)   sqlite3 --version ;;   # preinstalled
+          esac
+      - run: npm ci
+      - name: Platform facts (collector binary, SQLite backends)
+        shell: bash
+        run: |
+          node -v; node -p "process.platform + '/' + process.arch"
+          node --input-type=module -e "import('./src/collectors/ccusage.js').then(m => { const r = m.resolveCcusage(); console.log('collector', JSON.stringify(r)); if (!r.ok) process.exit(1); })"
+          node -e "try { require('node:sqlite'); console.log('node:sqlite yes') } catch { console.log('node:sqlite no') }"
+          sqlite3 --version
+      # Fail on skipped collector/SQLite tests: a silent skip would make an untested platform look green.
+      # (Linux-only cgroup OOM tests and POSIX-signal tests may skip.)
+      - name: Unit, adapter and CLI tests
+        shell: bash
+        run: |
+          node tests/run.js --test-reporter=tap | tee "$RUNNER_TEMP/tap.txt"
+          test "${PIPESTATUS[0]}" -eq 0
+          if grep -Ei '# SKIP .*(collector|sqlite)' "$RUNNER_TEMP/tap.txt"; then echo '::error::collector or SQLite tests were skipped'; exit 1; fi
+      - name: Tests with the sqlite3 CLI fallback forced
+        shell: bash
+        run: |
+          node tests/run.js --test-reporter=tap | tee "$RUNNER_TEMP/tap-cli.txt"
+          test "${PIPESTATUS[0]}" -eq 0
+          if grep -Ei '# SKIP .*(collector|sqlite)' "$RUNNER_TEMP/tap-cli.txt"; then echo '::error::collector or SQLite tests were skipped'; exit 1; fi
+        env:
+          STACKPULSE_SQLITE_BACKEND: cli
+      - name: Installed-tarball smoke test
+        run: node tests/e2e/tarball-smoke.mjs
+      - name: Interactive wizard through a real PTY
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p "$RUNNER_TEMP/wiz/out"
+          cp -r tests/fixtures/home-basic "$RUNNER_TEMP/wiz/home"
+          python3 tests/e2e/wizard_pty.py --home "$RUNNER_TEMP/wiz/home" --out "$RUNNER_TEMP/wiz/out"
+
+  report-prototype:
+    name: report prototype (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    defaults:
+      run:
+        working-directory: prototypes/report-v4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install fonts the prototype resolves from the OS (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y fonts-inter fonts-jetbrains-mono fonts-dejavu-core fonts-ipafont-gothic
+      - run: npm install
+      - run: npm test

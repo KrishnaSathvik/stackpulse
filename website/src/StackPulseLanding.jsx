@@ -324,7 +324,7 @@ export default function StackPulseLanding() {
           {[
             { num: "1", title: "Run the command", desc: "npx stackpulse — no install needed. The interactive wizard auto-detects AI tools on your machine and lets you add more manually." },
             { num: "2", title: "Choose your metrics", desc: "Pick from sessions, tokens, cost, commits, or lines written. Customize title, handle, theme — or use a YAML config to skip the wizard entirely." },
-            { num: "3", title: "Get your card", desc: "Opens stackpulse.html in your browser. Per-tool heatmap rows, donut chart, model breakdowns. Save as PNG at 2x, export PDF, or share directly on X." },
+            { num: "3", title: "Get your card", desc: "Opens stackpulse.html in your browser. Per-tool heatmap rows, donut chart, model breakdowns. Export PDF or share directly on X." },
           ].map((step, i) => (
             <div key={i} style={{ display: "grid", gridTemplateColumns: "40px 1fr", gap: 24, alignItems: "start", padding: "20px 0" }}>
               <div style={{ width: 40, height: 40, borderRadius: "50%", background: "#18181b", border: "1px solid #27272a", display: "flex", alignItems: "center", justifyContent: "center", ...s.mono, fontSize: 14, fontWeight: 600, color: s.accent, position: "relative", zIndex: 1 }}>{step.num}</div>

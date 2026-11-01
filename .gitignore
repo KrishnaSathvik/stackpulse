@@ -1,3 +1,28 @@
+# Dependencies
 node_modules/
 website/node_modules/
 website/dist/
+prototypes/*/node_modules/
+
+# Generated cards and exports (may contain personal usage data)
+/*.html
+/*.png
+/*.svg
+prototypes/*/out/
+*.tgz
+
+# User config files
+ai-usage.yaml
+ai-usage.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Python bytecode (e2e wizard driver)
+__pycache__/
+*.pyc

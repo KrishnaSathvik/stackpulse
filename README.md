@@ -32,7 +32,7 @@
 - Per-tool usage breakdown with model details
 - Donut chart with smart metric selection
 - GitHub-style activity heatmap (per-tool rows)
-- Save as PNG, PDF, or share on X — all from the card itself
+- Save as PDF (browser print) or share on X from the card itself
 
 One command. No API keys. No data leaves your machine.
 
@@ -63,46 +63,63 @@ The interactive wizard walks you through 3 steps:
 2. **Choose metrics** — sessions, tokens, cost, commits, lines written
 3. **Customize** — title, handle, theme, output filename
 
-Output: `stackpulse.html` (open in browser, click "Save as PNG")
+Output: `stackpulse.html` (open in a browser; use "Save as PDF" or your browser's screenshot tool for an image)
 
 ---
 
 ## Supported Tools
 
-stackpulse supports **13 AI coding tools** across 4 data source types:
+stackpulse supports **13 AI coding tools**. Each tool has exactly one data source per scan, so
+nothing is counted twice.
 
-### Full data (sessions + tokens + cost + heatmap)
+### Via the bundled collector (sessions + tokens + cost + models + heatmap)
 
-| Tool | Data Source | What's Read |
+All of these come from **one** offline run of the pinned [`ccusage`](https://github.com/ccusage/ccusage)
+collector, installed with stackpulse — nothing is downloaded during a scan.
+
+| Tool | Reads | Cost |
 |---|---|---|
-| **Claude Code** | `ccusage` | Sessions, tokens, cost, model breakdown, daily activity |
-| **OpenAI Codex** | `@ccusage/codex` | Sessions, tokens, cost, model breakdown, daily activity |
-| **OpenCode** | `@ccusage/opencode` | Sessions, tokens, cost, daily activity |
-| **Amp** (Sourcegraph) | `@ccusage/amp` | Sessions, tokens, cost, credits, daily activity |
-| **Pi Agent** | `@ccusage/pi` | Sessions, tokens, cost, daily activity |
+| **Claude Code** | `~/.claude/projects` (or `CLAUDE_CONFIG_DIR`) | estimated |
+| **OpenAI Codex** | `~/.codex/sessions` (or `CODEX_HOME`) | estimated |
+| **OpenCode** | `~/.local/share/opencode` | estimated |
+| **Amp** | `~/.local/share/amp` | estimated |
+| **Pi Agent** | `~/.pi/agent/sessions` | estimated |
+| **Gemini CLI** | `~/.gemini/tmp/*/chats` (`.json` and `.jsonl`) | estimated |
+| **Qwen Code** | `~/.qwen/projects/*/chats/*.jsonl` | estimated |
+| **Kimi CLI / Kimi Code** | `~/.kimi` and `~/.kimi-code` `wire.jsonl` | estimated |
+| **Antigravity** | `~/.gemini/antigravity*/conversations/*.db` | estimated |
+| **Kilo Code** | Kilo CLI database `~/.local/share/kilo/kilo.db` | **recorded** by Kilo |
 
-### Token data (sessions + tokens + heatmap)
+- **Estimated** costs use the collector's bundled API list prices. They are not your subscription bill.
+- Usage that can't be priced is never shown as $0: a cost covering only part of the usage is marked `*` (a lower bound), and a model with no known price is named in the footnote.
+- **Your `ccusage.json` is intentionally ignored.** ccusage normally merges `.ccusage/ccusage.json`
+  (current folder) and `~/.claude/ccusage.json`; stackpulse always passes its own empty config, so
+  your `since`/`until`, project filters, timezone and `pricingOverrides` there don't change stackpulse's
+  numbers. Data-location variables (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `*_DATA_DIR`) still apply.
+- **Incomplete sources are flagged.** If a source is only partly readable (e.g. a corrupt database),
+  that tool is marked *incomplete* with the reason and its figures are lower bounds. If it can't be
+  read at all, the scan shows an error instead of "no data".
+- **Tokens are exact; session counts follow the collector.** Token totals count every distinct
+  message once, and stackpulse's tests check them against hand-computed totals. A *session* is
+  whatever the collector counts: for Claude Code, one log file. When a resumed session repeats
+  earlier messages, those messages are credited to whichever file the collector reads first. A
+  resume file that contains only repeated messages may or may not count as a session. Session
+  counts can therefore be off by one per such file, while tokens and cost are unaffected.
+- **Reformatted Claude logs:** ccusage skips Claude log lines written with spaced JSON
+  (`"usage": {`). stackpulse warns when it finds such files — a best-effort check that samples the
+  start of each log, so it can miss some cases.
 
-| Tool | Data Source | What's Read |
+### Native readers
+
+| Tool | Reads | Data |
 |---|---|---|
-| **Gemini CLI** | Local JSONL files | Sessions, tokens, daily activity |
-| **Qwen Code** | Local JSONL files | Sessions, tokens, estimated cost, daily activity |
-| **Kimi Code** | Local session files | Sessions, tokens, estimated cost, daily activity |
+| **Cursor** | `state.vscdb` (composer data) | Sessions, daily activity. Cursor stores no tokens or cost locally. |
+| **Roo Code** | Per-task `history_item.json` files, plus the older VS Code globalState history | Tasks, tokens, **recorded** cost, daily activity |
+| **Aider** | `.aider.chat.history.md` + git history | Sessions, plus commits and lines that aider attributes to itself |
 
-### Session data (sessions only)
-
-| Tool | Data Source | What's Read |
-|---|---|---|
-| **Cursor** | SQLite `state.vscdb` | Composer sessions, daily activity from timestamps |
-| **Antigravity** | SQLite `state.vscdb` | Missions + agent sessions |
-| **Roo Code** | VS Code SQLite | Task history count |
-| **Kilo Code** | VS Code SQLite | Task history count |
-
-### Git-based
-
-| Tool | Data Source | What's Read |
-|---|---|---|
-| **Aider** | `.aider.chat.history.md` + git | Sessions, commits, lines written |
+**Fallbacks** (used only when the collector finds nothing for that tool, never added on top):
+- **Antigravity:** the IDE's session index (session counts only).
+- **Kilo Code:** the legacy VS Code extension's task history. Current Kilo migrates that history into `kilo.db`.
 
 Tools not installed on your machine can still be added manually during the wizard.
 
@@ -178,7 +195,6 @@ Options:
   -V, --version          output version number
   -c, --config <file>    load from YAML or JSON config file
   -o, --output <name>    output base filename (default: "stackpulse")
-  --no-png               skip PNG export prompt
   --theme <theme>        override theme (dark|light|cosmic|forge|arctic|verdant|neon)
   --title <title>        override card title
   --timeframe <range>    override timeframe text
@@ -197,12 +213,11 @@ stackpulse reads **only local data** — nothing is sent to any server.
 ┌─────────────────────────────────────────────────────┐
 │                    Your Machine                      │
 │                                                      │
-│  ~/.claude/projects/    ──→  ccusage (sessions,      │
-│  ~/.codex/              ──→  tokens, cost, models)   │
-│  ~/.gemini/tmp/         ──→  JSONL parser (tokens)   │
-│  ~/.kimi/sessions/      ──→  JSON parser (tokens)    │
-│  ~/Library/.../Cursor/  ──→  SQLite reader (sessions)│
-│  .aider.chat.history.md ──→  File parser (sessions)  │
+│  ~/.claude  ~/.codex  ~/.gemini  ~/.qwen  ~/.kimi    │
+│  ~/.pi  ~/.local/share/{opencode,amp,kilo}           │
+│              ──→  pinned ccusage (one offline run)   │
+│  Cursor / Roo Code state  ──→  read-only SQLite      │
+│  .aider.chat.history.md + git  ──→  file + git log   │
 │                                                      │
 │         ↓ all local ↓                                │
 │                                                      │
@@ -215,7 +230,7 @@ stackpulse reads **only local data** — nothing is sent to any server.
 │  │  ┌────────────────────────────────────┐     │     │
 │  │  │  Per-tool activity heatmap         │     │     │
 │  │  └────────────────────────────────────┘     │     │
-│  │  [Save PNG] [Save PDF] [Share on X]         │     │
+│  │  [Save PDF] [Share on X]                    │     │
 │  └─────────────────────────────────────────────┘     │
 └─────────────────────────────────────────────────────┘
 ```
@@ -226,16 +241,17 @@ stackpulse reads **only local data** — nothing is sent to any server.
 
 The generated HTML card includes built-in export buttons:
 
-- **Save as PNG** — captures the full card at 2x resolution via html2canvas
 - **Save as PDF** — uses the browser's native print dialog
+- **PNG** — not built in yet; a native PNG/SVG export is in development
 - **Share on X** — pre-filled tweet with your tool stats
 
 ---
 
 ## Requirements
 
-- **Node.js 18+**
-- **sqlite3 CLI** (for Cursor/Antigravity/Roo Code/Kilo Code parsing)
+- **Node.js 20.12+** (Node 22.13+ recommended; 18 is not supported — it never ran stackpulse 3.x)
+- **SQLite access** for Cursor, Roo Code and the Antigravity/Kilo fallbacks: built in on Node 22.5+, otherwise the `sqlite3` CLI on your PATH
+- Memory: the collector holds your full history in memory — roughly twice the size of your AI tool logs
 - Tools you want to track must be installed and have local usage data
 
 ---

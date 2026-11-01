@@ -1,4 +1,25 @@
-export function generateHTML({ title, timeframe, username, theme, tools, metrics, heatmapData }) {
+import { escapeHtml, safeColor } from './src/utils/html.js';
+import { localDate } from './src/utils/dates.js';
+
+export function generateHTML(input) {
+  // Everything below interpolates these escaped copies; raw values are only
+  // used for the URL-encoded share text.
+  const rawTitle  = String(input.title || 'My AI Coding Stack');
+  const rawTools  = input.tools || [];
+  const title     = escapeHtml(rawTitle);
+  const timeframe = escapeHtml(input.timeframe || '');
+  const username  = escapeHtml(String(input.username || '').replace(/^@/, ''));
+  const theme     = input.theme;
+  const heatmapData = input.heatmapData;
+  const tools = rawTools.map(tool => ({
+    ...tool,
+    key:   String(tool.key ?? ''),
+    name:  escapeHtml(tool.name),
+    icon:  escapeHtml(tool.icon || '◆'),
+    color: safeColor(tool.color),
+    metrics: { ...(tool.metrics || {}) },
+  }));
+  const metrics = (input.metrics || []).map(m => ({ ...m, label: escapeHtml(m.label), icon: escapeHtml(m.icon) }));
 
   const themes = {
     dark:    { bg:'#0A0A0B', surface:'#111113', surfaceAlt:'#18181B', border:'#27272A', borderAccent:'#3F3F46', text:'#FAFAFA', textMuted:'#A1A1AA', textDim:'#52525B', font:"'JetBrains Mono', monospace", displayFont:"'Space Grotesk', sans-serif", glow:'radial-gradient(ellipse 80% 60% at 70% 0%, rgba(251,191,36,0.06) 0%, transparent 60%)', accent:'#F59E0B' },
@@ -13,12 +34,15 @@ export function generateHTML({ title, timeframe, username, theme, tools, metrics
   const t = themes[theme] || themes.dark;
 
   // ── Format helpers (JS, not inside HTML string) ───────────────────────────
+  // null/undefined = not available from the source ("\u2014"); 0 is a real zero.
   function fmtVal(val, metric) {
-    if (val == null || val === 0) return '\u2014';
+    if (val == null || !Number.isFinite(Number(val))) return '\u2014';
     if (!metric) return String(val);
+    if (val === 0) return metric.key === 'cost_usd' ? '$0.00' : '0';
     if (metric.key === 'cost_usd') {
       if (val >= 10000) return '$' + (val / 1000).toFixed(1) + 'k';
       if (val >= 1000)  return '$' + Math.round(val).toLocaleString();
+      if (val > 0 && val < 0.005) return '&lt;$0.01';   // never let a real cost read as "$0.00" (HTML-escaped)
       return '$' + Number(val).toFixed(2);
     }
     if (metric.key === 'tokens_used') {
@@ -37,24 +61,44 @@ export function generateHTML({ title, timeframe, username, theme, tools, metrics
   }
 
   function fmtStatStrip(val, metric) {
-    if (!val || val === 0) return '\u2014';
     return fmtVal(val, metric);
   }
 
+  const isKnown = v => v != null && Number.isFinite(Number(v));
+  // Any included source only partly read makes every total a lower bound.
+  const incomplete = tools.filter(tool => !tool.isModelRow && tool.coverage?.status === 'partial');
+  const incompleteMark = tool => (tool.coverage?.status === 'partial'
+    ? '<sup class="s-flag" title="Incomplete data \u2014 see note below">\u2020</sup>' : '');
+
   // ── Totals — parent headers + plain rows, NOT model sub-rows ──────────────
+  // A total sums only tools that report the metric; coverage records how many did.
   const topLevel = tools.filter(t2 => !t2.isModelRow);
   const totals   = {};
   const maxVals  = {};
+  const coverage = {};
   metrics.forEach(m => {
-    totals[m.key]  = topLevel.reduce((s, tool) => s + (tool.metrics[m.key] || 0), 0);
-    maxVals[m.key] = Math.max(...tools.map(tool => tool.metrics[m.key] || 0), 1);
+    const known = topLevel.filter(tool => isKnown(tool.metrics[m.key]));
+    coverage[m.key] = { known: known.length, of: topLevel.length };
+    totals[m.key]  = known.length ? known.reduce((s, tool) => s + Number(tool.metrics[m.key]), 0) : null;
+    maxVals[m.key] = Math.max(...tools.map(tool => Number(tool.metrics[m.key]) || 0), 1);
   });
+
+  const costInfos = topLevel.map(tool => tool.costInfo).filter(Boolean);
+  const costEstimated = costInfos.some(c => c.kind === 'estimated' || c.kind === 'mixed');
+  const isPartialCost = c => !!c && (c.status === 'partial' || (c.status == null && c.partial));
+  const costPartial = costInfos.some(isPartialCost);
+  const unpricedModels = [...new Set(costInfos.flatMap(c => c.unpricedModels || []))];
+  const pricingSources = [...new Set(costInfos.map(c => c.pricingSource).filter(Boolean))];
+  // '*' marks a cost that is a lower bound: some usage behind it has no known price
+  const costMark = (tool, metric, val) =>
+    metric.key === 'cost_usd' && val != null && isPartialCost(tool.costInfo) ? '<sup class="s-flag">*</sup>' : '';
 
   // ── Header summary ─────────────────────────────────────────────────────────
   const hdrParts = [];
   if (totals['sessions'])    hdrParts.push(totals['sessions'].toLocaleString() + ' sessions');
   if (totals['tokens_used']) hdrParts.push(totals['tokens_used'] >= 1000 ? (totals['tokens_used']/1000).toFixed(1)+'M tokens' : totals['tokens_used']+'K tokens');
-  if (totals['cost_usd'])    hdrParts.push('$' + totals['cost_usd'].toFixed(2));
+  if (totals['cost_usd'])    hdrParts.push(fmtVal(totals['cost_usd'], { key: 'cost_usd' }));
+  if (incomplete.length && hdrParts.length) hdrParts.push('incomplete data');
   const hdrSub = hdrParts.length
     ? hdrParts.join(' \u00b7 ')
     : topLevel.length + ' tool' + (topLevel.length !== 1 ? 's' : '') + ' \u00b7 ' + metrics.length + ' metric' + (metrics.length !== 1 ? 's' : '');
@@ -65,7 +109,7 @@ export function generateHTML({ title, timeframe, username, theme, tools, metrics
   for (const tool of tools) {
     if (tool.isParentHeader) {
       const parentCells = metrics.map(metric => {
-        const val = tool.metrics[metric.key] || 0;
+        const val = tool.metrics[metric.key] ?? null;
         if (metric.key === 'sessions' && val > 0) {
           return '<td class="metric-cell"><span class="ph-sessions">' + val + ' sessions</span></td>';
         }
@@ -77,17 +121,17 @@ export function generateHTML({ title, timeframe, username, theme, tools, metrics
       toolRows += '<tr class="parent-hdr-row">'
         + '<td class="parent-hdr-cell">'
         + '<span class="ph-icon" style="color:' + tool.color + '">' + tool.icon + '</span>'
-        + '<span class="ph-name" style="color:' + tool.color + '">' + tool.name + '</span>'
+        + '<span class="ph-name" style="color:' + tool.color + '">' + tool.name + '</span>' + incompleteMark(tool)
         + '</td>' + parentCells + '</tr>';
 
     } else if (tool.isModelRow) {
       const branch = tool.isLast ? '\u2570' : '\u251c';
       const cells = metrics.map(metric => {
-        const val = tool.metrics[metric.key] || 0;
+        const val = tool.metrics[metric.key] ?? null;
         const pct = Math.min((val / maxVals[metric.key]) * 100, 100);
         return '<td class="metric-cell"><div class="bar-wrap">'
           + '<div class="bar-fill" style="width:' + (val > 0 ? Math.max(pct,2) : 0) + '%;background:' + tool.color + ';opacity:' + (val > 0 ? 0.65 : 0) + '"></div>'
-          + '<span class="bar-val" style="color:' + (val > 0 ? tool.color : t.textDim) + '">' + fmtVal(val, metric) + '</span>'
+          + '<span class="bar-val"' + (isKnown(val) ? '' : ' title="Not available from this tool&#39;s local data"') + ' style="color:' + (val > 0 ? tool.color : t.textDim) + '">' + fmtVal(val, metric) + costMark(tool, metric, val) + '</span>'
           + '</div></td>';
       }).join('');
       toolRows += '<tr class="tool-row model-row" style="animation-delay:' + (rowIdx*40) + 'ms">'
@@ -99,17 +143,17 @@ export function generateHTML({ title, timeframe, username, theme, tools, metrics
 
     } else {
       const cells = metrics.map(metric => {
-        const val = tool.metrics[metric.key] || 0;
+        const val = tool.metrics[metric.key] ?? null;
         const pct = Math.min((val / maxVals[metric.key]) * 100, 100);
         return '<td class="metric-cell"><div class="bar-wrap">'
           + '<div class="bar-fill" style="width:' + (val > 0 ? Math.max(pct,2) : 0) + '%;background:' + tool.color + ';opacity:' + (val > 0 ? 0.75 : 0) + '"></div>'
-          + '<span class="bar-val" style="color:' + (val > 0 ? tool.color : t.textDim) + '">' + fmtVal(val, metric) + '</span>'
+          + '<span class="bar-val"' + (isKnown(val) ? '' : ' title="Not available from this tool&#39;s local data"') + ' style="color:' + (val > 0 ? tool.color : t.textDim) + '">' + fmtVal(val, metric) + costMark(tool, metric, val) + '</span>'
           + '</div></td>';
       }).join('');
       toolRows += '<tr class="tool-row" style="animation-delay:' + (rowIdx*55) + 'ms">'
         + '<td class="name-cell">'
         + '<span class="t-icon" style="color:' + tool.color + '">' + tool.icon + '</span>'
-        + '<span class="t-name">' + tool.name + '</span>'
+        + '<span class="t-name">' + tool.name + '</span>' + incompleteMark(tool)
         + '</td>' + cells + '</tr>';
       rowIdx++;
     }
@@ -219,7 +263,7 @@ export function generateHTML({ title, timeframe, username, theme, tools, metrics
             const d = new Date(startDate);
             d.setDate(startDate.getDate() + col * 7 + row);
             if (d > today) { cells += '<div class="hm-cell hm-empty"></div>'; continue; }
-            const dateStr = d.toISOString().slice(0,10);
+            const dateStr = localDate(d);
             const val = ht.dm.get(dateStr) || 0;
             if (val > 0) { activeDays++; toolSessions += val; }
             const intensity = val === 0 ? 0 : Math.min(Math.ceil((val / maxVal) * 4), 4);
@@ -273,8 +317,11 @@ export function generateHTML({ title, timeframe, username, theme, tools, metrics
   const statCards = metrics.map(m =>
     '<div class="stat">'
     + '<div class="s-icon">' + m.icon + '</div>'
-    + '<div class="s-val">' + fmtStatStrip(totals[m.key] || 0, m) + '</div>'
-    + '<div class="s-lbl">' + m.label + '</div>'
+    + '<div class="s-val">' + fmtStatStrip(totals[m.key], m) + (m.key === 'cost_usd' && costPartial && totals[m.key] != null ? '<sup class="s-flag">*</sup>' : '')
+    + (incomplete.length ? '<sup class="s-flag" title="Includes incomplete sources \u2014 see note below">\u2020</sup>' : '') + '</div>'
+    + '<div class="s-lbl">' + m.label + (m.key === 'cost_usd' && costEstimated ? ' (est.)' : '') + '</div>'
+    + (coverage[m.key].known < coverage[m.key].of
+        ? '<div class="s-cov">' + coverage[m.key].known + ' of ' + coverage[m.key].of + ' tools</div>' : '')
     + '</div>'
   ).join('');
 
@@ -330,15 +377,15 @@ export function generateHTML({ title, timeframe, username, theme, tools, metrics
   }
 
   // ── Share URL ──────────────────────────────────────────────────────────────
-  const shareToolLines = topLevel.slice(0, 5).map(tool => {
+  const shareToolLines = rawTools.filter(t2 => !t2.isModelRow).slice(0, 5).map(tool => {
     const parts = [];
     if (tool.metrics.sessions)    parts.push(Number(tool.metrics.sessions).toLocaleString() + ' sessions');
     if (tool.metrics.tokens_used) parts.push(fmtVal(tool.metrics.tokens_used, metrics.find(m => m.key === 'tokens_used')) + ' tokens');
     if (tool.metrics.cost_usd)    parts.push(fmtVal(tool.metrics.cost_usd, metrics.find(m => m.key === 'cost_usd')));
-    return tool.icon + ' ' + tool.name + (parts.length ? ': ' + parts.join(' \u00b7 ') : '');
+    return (tool.icon || '\u25c6') + ' ' + String(tool.name ?? '') + (parts.length ? ': ' + parts.join(' \u00b7 ') : '');
   }).join('\n');
   const shareLines = [
-    title,
+    rawTitle,
     '',
     shareToolLines,
     '',
@@ -347,10 +394,26 @@ export function generateHTML({ title, timeframe, username, theme, tools, metrics
     'Generated with stackpulse',
     'github.com/KrishnaSathvik/stackpulse',
   ].join('\n');
-  const shareUrl  = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(shareLines);
-  const safeTitle = title.replace(/[^a-z0-9]/gi, '-').toLowerCase();
+  // Share text is plain text: undo the HTML escaping fmtVal applies (e.g. "&lt;$0.01")
+  const shareUrl  = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(shareLines.replace(/&lt;/g, '<'));
 
   // ── Column headers ─────────────────────────────────────────────────────────
+  const footnotes = [];
+  // Tools whose source was only partly readable: their numbers are lower bounds.
+  if (incomplete.length) {
+    footnotes.push('\u2020 Totals are incomplete: ' + incomplete.length + ' source' + (incomplete.length === 1 ? ' was' : 's were')
+      + ' only partly readable, so every total is a lower bound.');
+  }
+  for (const tool of incomplete) {
+    const why = (tool.coverage.reasons || [])[0];
+    footnotes.push('\u2020 Incomplete: ' + tool.name + (why ? ' \u2014 ' + escapeHtml(why) : '') + '. Its figures are lower bounds.');
+  }
+  if (costEstimated) footnotes.push('Cost is an API-list-price estimate' + (pricingSources.length ? ' (' + escapeHtml(pricingSources.join('; ')) + ')' : '') + ', not a subscription bill.');
+  if (costPartial) footnotes.push('* Lower bound: some usage has no known price' + (unpricedModels.length ? ' (' + escapeHtml(unpricedModels.join(', ')) + ')' : '') + '.');
+  else if (unpricedModels.length) footnotes.push('No known price for: ' + escapeHtml(unpricedModels.join(', ')) + '; their cost is shown as unavailable.');
+  const footnoteHtml = footnotes.length && (incomplete.length || metrics.some(m => m.key === 'cost_usd'))
+    ? '  <div class="notes">' + footnotes.map(f => '<div>' + f + '</div>').join('') + '</div>\n' : '';
+
   const colHeaders = metrics.map(m => '<th>' + m.icon + ' ' + m.label + '</th>').join('');
 
   // ── HTML output (plain string concat — NO nested template literals) ────────
@@ -445,6 +508,9 @@ export function generateHTML({ title, timeframe, username, theme, tools, metrics
   + '.hm-leg-tool{display:inline-flex;align-items:center;gap:3px;margin:0 2px}\n'
   + '.hm-leg-tool .hm-leg-lbl{color:' + t.textMuted + ';font-weight:500}\n'
   + '.footer{padding:12px 36px;border-top:1px solid ' + t.border + ';background:' + t.surfaceAlt + ';display:flex;align-items:center;justify-content:space-between;border-radius:0 0 20px 20px}\n'
+  + '.s-cov{font-size:9px;color:' + t.textMuted + ';margin-top:3px;opacity:.8}\n'
+  + '.s-flag{font-size:11px;color:' + t.accent + ';margin-left:2px}\n'
+  + '.notes{padding:10px 36px;border-top:1px solid ' + t.border + ';font-size:9.5px;color:' + t.textMuted + ';line-height:1.6}\n'
   + '.ft-l{font-size:9.5px;color:' + t.textDim + ';letter-spacing:.05em}\n'
   + '.ft-actions{display:flex;align-items:center;gap:8px}\n'
   + '.ft-btn{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:7px;font-size:10px;font-weight:600;letter-spacing:.04em;cursor:pointer;text-decoration:none;border:1px solid ' + t.borderAccent + ';background:' + t.surfaceAlt + ';color:' + t.textMuted + ';font-family:' + t.font + ';transition:all .15s ease;outline:none}\n'
@@ -473,7 +539,7 @@ export function generateHTML({ title, timeframe, username, theme, tools, metrics
   + (donutSegs || '<circle cx="70" cy="70" r="56" fill="none" stroke="' + t.border + '" stroke-width="18"/>')
   + '\n          <circle cx="70" cy="70" r="30" fill="' + t.surface + '"/>\n'
   + '          <text x="70" y="63" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="' + t.textMuted + '" font-weight="600" letter-spacing="1">TOTAL</text>\n'
-  + '          <text x="70" y="80" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="14" fill="' + t.text + '" font-weight="700">' + fmtVal(totals[primary ? primary.key : ''] || 0, primary) + '</text>\n'
+  + '          <text x="70" y="80" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="14" fill="' + t.text + '" font-weight="700">' + fmtVal(primary ? totals[primary.key] : null, primary) + '</text>\n'
   + '        </svg>\n'
   + '      </div>\n'
   + '      <div class="dp-legend">' + donutLegend + '</div>\n'
@@ -486,6 +552,7 @@ export function generateHTML({ title, timeframe, username, theme, tools, metrics
   + '    </div>\n'
   + '  </div>\n'
   + (heatmapHtml ? heatmapHtml + '\n' : '')
+  + footnoteHtml
   + '  <div class="footer">\n'
   + '    <span class="ft-l">stackpulse \u00b7 github.com/KrishnaSathvik/stackpulse</span>\n'
   + '    <div class="ft-actions">\n'
