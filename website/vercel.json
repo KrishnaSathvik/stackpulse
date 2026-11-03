@@ -5,6 +5,12 @@
       "has": [{ "type": "host", "value": "www.stackpulsecli.com" }],
       "destination": "https://stackpulsecli.com/$1",
       "permanent": true
+    },
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "stackpulse-three.vercel.app" }],
+      "destination": "https://stackpulsecli.com/$1",
+      "permanent": true
     }
   ],
   "rewrites": [
