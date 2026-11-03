@@ -195,12 +195,9 @@ code, kbd, pre { font-family: var(--font-mono); }
 .strip li + li { padding-left: 16px; border-left: 1px solid var(--border); }
 .strip b { display: block; font-size: 20px; color: var(--heading); font-weight: 650; letter-spacing: -0.02em; margin-bottom: 3px; }
 
-.hero__visual { position: relative; width: 100%; min-width: 0; padding: 0 0 72px 36px; }
-.hero__report { transform: none; }
-.crop--hero { aspect-ratio: 16 / 11; }
-.crop--hero::after { content: ''; position: absolute; inset: auto 0 0; height: 64px; background: linear-gradient(transparent, var(--report-bg)); }
-.hero__term { position: absolute; left: 0; bottom: 0; width: min(420px, 78%); z-index: 2; box-shadow: var(--shadow-xl); }
-.hero__term .terminal__body { font-size: 12.5px; padding: 12px 16px 12px; }
+.hero__visual { position: relative; width: 100%; min-width: 0; display: grid; place-items: center; }
+.hero-tools { display: grid; gap: 26px; width: min(100%, 520px); margin: 0; justify-items: center; }
+.hero-tools__row { display: flex; justify-content: center; gap: 26px; }
 
 /* ─── 2. Product story ───────────────────────────────────────────────────── */
 .story { display: grid; grid-template-columns: minmax(0, 3.6fr) minmax(0, 8.4fr); gap: clamp(24px, 3.5vw, 48px); align-items: start; }
@@ -227,6 +224,9 @@ code, kbd, pre { font-family: var(--font-mono); }
 .sv__zoom { position: relative; display: block; width: 100%; padding: 0; border: 0; background: none; cursor: zoom-in; }
 .sv__zoomhint { position: absolute; right: 14px; bottom: 14px; display: inline-flex; align-items: center; gap: 6px; padding: 7px 11px; border-radius: 999px; background: rgba(16, 24, 40, .82); color: #fff; font: 600 12.5px/1 var(--font-sans); opacity: 0; transform: translateY(4px); transition: opacity .2s, transform .2s; }
 .sv__zoom:hover .sv__zoomhint, .sv__zoom:focus-visible .sv__zoomhint { opacity: 1; transform: none; }
+
+.activity__frame { background: var(--report-bg); }
+.activity__shot img { display: block; width: 100%; height: auto; }
 
 .zoom { border: 0; padding: 0; background: transparent; max-width: min(1400px, 94vw); max-height: 92vh; overflow: visible; }
 .zoom::backdrop { background: rgba(4, 8, 16, .8); backdrop-filter: blur(6px); }
@@ -432,7 +432,6 @@ code, kbd, pre { font-family: var(--font-mono); }
   html { scroll-behavior: auto; }
   .reveal { opacity: 1; transform: none; transition: none; }
   .story__view, .crop--theme img { animation: none; }
-  .hero__report { transform: none; }
   *, *::before, *::after { transition-duration: 0s !important; }
 }
 
@@ -453,14 +452,13 @@ code, kbd, pre { font-family: var(--font-mono); }
 @media (max-width: 900px) {
   .split-head { grid-template-columns: minmax(0, 1fr); }
   .hero__visual { width: 100%; max-width: 100%; padding: 0; margin-top: 12px; }
-  .hero__report { transform: none; }
-  .hero__term { position: relative; left: auto; bottom: auto; width: 100%; max-width: 100%; margin: 16px 0 0; }
   .story__steps { grid-template-columns: minmax(0, 1fr); }
   .story__step { grid-template-columns: 34px minmax(0, 1fr); border-left: 0; border-top: 1px solid var(--border); border-radius: 0; padding: 14px 4px; }
   .story__step[aria-selected='true'] { border-top-color: var(--accent); border-left-color: transparent; }
   .theme-bar { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .wall { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .wall__lead { grid-column: 1 / -1; }
+  .wall__tool:last-child { grid-column: 1 / -1; }
   .wall__tool { flex-direction: row; justify-content: flex-start; gap: 12px; min-height: 0; padding: 16px; text-align: left; }
   .wall__tool > span:last-child { min-width: 0; }
   .feat--discover, .feat--metrics, .feat--models, .feat--local { grid-column: 1 / -1; }
@@ -475,7 +473,9 @@ code, kbd, pre { font-family: var(--font-mono); }
   body { font-size: 16px; }
   .hero h1 { letter-spacing: -0.045em; }
   .hero__cells { width: 140vw; right: -50vw; top: 40px; opacity: .4; }
-  .hero__term .terminal__body { font-size: 12px; padding: 12px 14px; }
+  .hero-tools { gap: 16px; }
+  .hero-tools__row { gap: 14px; }
+  .hero-tools .tool-icon { width: 44px; height: 44px; padding: 6px; border-radius: 12px; }
   .strip { max-width: none; }
   .strip li { min-width: 0; flex: 1 1 30%; font-size: 13px; padding-right: 10px; }
   .strip li + li { padding-left: 10px; }
@@ -492,18 +492,20 @@ code, kbd, pre { font-family: var(--font-mono); }
   .sv__stats span { aspect-ratio: 539 / 345; background-image: var(--shot); background-repeat: no-repeat; background-size: 500% 100%; background-position: calc(var(--i) * 25%) 0; }
   .sv__zoom { overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; }
   .sv--models img, .sv--activity img { width: 100%; max-width: 100%; height: auto; }
+  .activity__shot { overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; }
+  .activity__shot img { width: 760px; max-width: none; }
   .sv__row { grid-template-columns: minmax(0, 1fr); padding: 16px; width: auto; position: static; }
   .sv__donut { display: flex; justify-content: center; }
   .sv__donut img { width: 100%; max-width: 100%; height: auto; }
   .sv__zoomhint { opacity: 1; transform: none; }
+  .feat, .sv__row, .terminal, .codeblock { min-width: 0; }
   .terminal, .codeblock { max-width: 100%; }
-  .terminal__body, .codeblock__body { white-space: pre-wrap; overflow-wrap: anywhere; }
-  .hero__term .terminal__body, .sv--tools .terminal__body, .feat .terminal__body { font-size: 12px; padding: 12px 14px; mask-image: none; -webkit-mask-image: none; }
+  .terminal__body, .codeblock__body { white-space: pre; overflow-x: auto; overflow-wrap: normal; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
+  .sv--tools .terminal__body, .feat .terminal__body { font-size: 12px; line-height: 1.65; padding: 14px 16px 16px; }
   .wall__tool .tool-icon { --s: 30px !important; border-radius: 10px; }
   .feats { gap: 14px; }
   .feat { padding: 22px; gap: 18px; }
   .feat--discover .terminal { margin: 0; border-radius: 12px; border-right: 1px solid var(--term-border); border-bottom: 1px solid var(--term-border); }
-  .wall__tool:last-child { grid-column: 1 / -1; }
   .wall__tool > span:last-child { font-size: 14.5px; }
   .theme-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; overflow: visible; margin: 0 0 18px; padding: 0; }
   .theme-card { min-width: 0; }

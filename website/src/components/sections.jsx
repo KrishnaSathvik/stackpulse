@@ -55,7 +55,7 @@ function Frame({ title, children, className = '', actions }) {
 }
 
 // ── 1. Hero ─────────────────────────────────────────────────────────────────
-export function Hero({ theme }) {
+export function Hero() {
   return (
     <section className="hero" id="top" aria-labelledby="hero-title">
       <div className="hero__wash" aria-hidden="true" />
@@ -78,14 +78,18 @@ export function Hero({ theme }) {
           </ul>
         </div>
         <div className="hero__visual reveal" style={{ '--i': 2 }}>
-          <Frame title="stackpulse.html" className="hero__report">
-            <div className="crop crop--hero">
-              <Shot name={`card-${theme}`} eager
-                alt="A StackPulse report: totals for sessions, tokens, estimated cost, lines written and AI commits, a sessions donut, and a row per tool and per model." />
-            </div>
-          </Frame>
-          <Terminal part="scan" from={11} className="hero__term" title="~/Projects — zsh"
-            label="StackPulse in the terminal: the tools it found, with sessions, tokens and estimated cost for each." />
+          <figure className="hero-tools">
+            <figcaption className="sr-only">The 13 AI coding tools StackPulse reads on your machine.</figcaption>
+            {[TOOLS.slice(0, 4), TOOLS.slice(4, 9), TOOLS.slice(9)].map(row => (
+              <div key={row[0].name} className="hero-tools__row">
+                {row.map(tool => (
+                  <span key={tool.name} className="hero-tools__item" title={tool.name}>
+                    <ToolIcon tool={tool} size={48} />
+                  </span>
+                ))}
+              </div>
+            ))}
+          </figure>
         </div>
       </div>
     </section>
@@ -173,12 +177,33 @@ export function Story({ theme }) {
   );
 }
 
-// ── 3. Features ─────────────────────────────────────────────────────────────
+// ── 3. Activity heatmap ─────────────────────────────────────────────────────
+export function Activity({ theme }) {
+  return (
+    <section className="section" id="activity" aria-labelledby="activity-title">
+      <div className="container">
+        <SplitHead index="02" kicker="Activity" id="activity-title" title="A year of daily activity, one row per tool.">
+          Each block is a day. Brighter blocks are the days that tool was used more.
+        </SplitHead>
+        <div className="activity reveal">
+          <Frame title="stackpulse.html — activity" className="activity__frame">
+            <div className="activity__shot">
+              <Shot name={`heatmap-${theme}`}
+                alt="Report activity heatmap: 294 active days across a year, with one row each for Cursor, Aider, Claude Code, Codex and Gemini CLI." />
+            </div>
+          </Frame>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ── 4. Features ─────────────────────────────────────────────────────────────
 export function Features() {
   return (
     <section className="section" id="features" aria-labelledby="features-title">
       <div className="container">
-        <SplitHead index="02" kicker="Features" id="features-title" title="Built around what your tools actually record.">
+        <SplitHead index="03" kicker="Features" id="features-title" title="Built around what your tools actually record.">
           No estimates dressed up as data. StackPulse reports what each tool keeps, and says when a number covers only some of them.
         </SplitHead>
         <div className="feats">
@@ -249,7 +274,7 @@ export function Tools() {
       <div className="container">
         <ul className="wall reveal">
           <li className="wall__lead">
-            <Kicker index="03">Integrations</Kicker>
+            <Kicker index="04">Integrations</Kicker>
             <h2 id="tools-title"><span className="wall__num">13</span> AI coding tools, one report.</h2>
             <p>Read straight from the files each tool keeps on your machine.</p>
           </li>
@@ -280,7 +305,7 @@ export function Themes() {
   return (
     <section className="section" id="reports" aria-labelledby="themes-title">
       <div className="container">
-        <SplitHead index="04" kicker="Report themes" id="themes-title" title="Seven looks for your report.">
+        <SplitHead index="05" kicker="Report themes" id="themes-title" title="Seven looks for your report.">
           Themes style the HTML report StackPulse writes. Pick one in the CLI, or pass <code>--theme</code>.
         </SplitHead>
         <div className="themes reveal">
