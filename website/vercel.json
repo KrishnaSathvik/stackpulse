@@ -1,4 +1,12 @@
 {
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "www.stackpulsecli.com" }],
+      "destination": "https://stackpulsecli.com/$1",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     { "source": "/docs", "destination": "/docs/index.html" }
   ]

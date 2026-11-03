@@ -19,8 +19,8 @@
 </p>
 
 <p align="center">
-  <a href="https://stackpulse-three.vercel.app">Website</a> ·
-  <a href="https://stackpulse-three.vercel.app/docs/">Docs</a> ·
+  <a href="https://stackpulsecli.com">Website</a> ·
+  <a href="https://stackpulsecli.com/docs/">Docs</a> ·
   <a href="https://www.npmjs.com/package/stackpulse">npm</a> ·
   <a href="https://github.com/KrishnaSathvik/stackpulse">GitHub</a>
 </p>
