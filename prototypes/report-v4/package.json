@@ -1,0 +1,13 @@
+{
+  "name": "stackpulse-report-v4-prototype",
+  "private": true,
+  "type": "module",
+  "description": "Prototype SVG/PNG report engine for StackPulse 4.0 (not shipped)",
+  "scripts": {
+    "render": "node render.js --all",
+    "test": "node --test test/render.test.js"
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "2.6.2"
+  }
+}

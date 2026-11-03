@@ -23,7 +23,8 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { execSync } from 'child_process';
+import { listTables, queryColumn, readItemJson } from '../src/utils/sqlite.js';
+import { localDate } from '../src/utils/dates.js';
 
 // ── Cursor data directory detection ──────────────────────────────────────────
 
@@ -68,30 +69,34 @@ function safeJsonParse(str) {
   try { return JSON.parse(str); } catch { return null; }
 }
 
-function sqlExec(dbPath, query) {
-  try {
-    return execSync(
-      `sqlite3 "${dbPath}" "${query}"`,
-      { timeout: 8000, stdio: ['ignore', 'pipe', 'ignore'] }
-    ).toString().trim();
-  } catch { return ''; }
-}
+const count = (dbPath, sql) => parseInt(queryColumn(dbPath, sql)[0], 10) || 0;
 
 // ── Read a single state.vscdb ────────────────────────────────────────────────
 
 function readVscdb(dbPath) {
   const result = {
-    composerSessions: 0,
+    // Sessions keyed by identity so the same composer seen in several databases
+    // (global cursorDiskKV + a workspace's legacy allComposers) counts once.
+    sessions: new Map(),    // 'composer:<id>' | 'tab:<id>' → YYYY-MM-DD | null
     promptCount: 0,
     generationCount: 0,
-    dates: [],              // createdAt dates for heatmap
+  };
+  const toDate = (v) => {
+    if (v == null) return null;
+    const d = typeof v === 'number' ? localDate(new Date(v)) : String(v).slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null;
+  };
+  let anon = 0;   // entries without an id: still counted, never merged
+  const addSession = (key, date) => {
+    const k = key ?? `anon:${dbPath}:${anon++}`;
+    if (!result.sessions.has(k) || (date && !result.sessions.get(k))) result.sessions.set(k, date ?? null);
   };
 
-  try {
-    // Detect which table(s) exist
-    const tablesOut = sqlExec(dbPath, '.tables');
-    const hasCursorDiskKV = tablesOut.includes('cursorDiskKV');
-    const hasItemTable    = tablesOut.includes('ItemTable');
+  {
+    // Detect which table(s) exist. Errors propagate so the scan can report them.
+    const tables = listTables(dbPath);
+    const hasCursorDiskKV = tables.includes('cursorDiskKV');
+    const hasItemTable    = tables.includes('ItemTable');
 
     if (!hasCursorDiskKV && !hasItemTable) return result;
 
@@ -99,83 +104,45 @@ function readVscdb(dbPath) {
     // NEW FORMAT: cursorDiskKV — each session is composerData:<uuid>
     // ────────────────────────────────────────────────────────────────────────
     if (hasCursorDiskKV) {
-      // Count all composer sessions (one row per session)
-      const countOut = sqlExec(dbPath,
-        "SELECT COUNT(*) FROM cursorDiskKV WHERE key LIKE 'composerData:%'"
-      );
-      const sessionCount = parseInt(countOut) || 0;
-      result.composerSessions += sessionCount;
-
-      // Extract createdAt dates from session metadata for heatmap.
-      // Each composerData row can be very large (full conversation), so we
-      // use substr to only pull the first 500 chars where createdAt lives.
-      if (sessionCount > 0) {
-        try {
-          const rows = execSync(
-            `sqlite3 "${dbPath}" "SELECT substr(value, 1, 500) FROM cursorDiskKV WHERE key LIKE 'composerData:%';"`,
-            { timeout: 15000, maxBuffer: 20 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] }
-          ).toString();
-
-          for (const line of rows.split('\n')) {
-            if (!line.trim()) continue;
-            // Fast extract: "createdAt":"2025-06-15T..." (ISO string)
-            const m = line.match(/"createdAt"\s*:\s*"([^"]+)"/);
-            if (m) {
-              const date = m[1].slice(0, 10);
-              if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-                result.dates.push(date);
-                continue;
-              }
-            }
-            // Numeric timestamp format: "createdAt":1718467200000
-            const m2 = line.match(/"createdAt"\s*:\s*(\d{13})/);
-            if (m2) {
-              const date = new Date(Number(m2[1])).toISOString().slice(0, 10);
-              result.dates.push(date);
-            }
-          }
-        } catch {
-          // If bulk extraction fails (too large), we still have the session count
-        }
+      // One row per composer: key composerData:<id>. Values can be huge (the whole
+      // conversation), so only the first 500 chars are read — createdAt lives there.
+      // Prefix match as a key range (';' follows ':'), not LIKE: LIKE is case-insensitive,
+      // so SQLite cannot use the key index and scans the whole table — 46 s on a measured
+      // 34 GB state.vscdb versus 0.1 s for the range, with identical rows.
+      const rows = queryColumn(dbPath,
+        "SELECT key || char(9) || substr(CAST(value AS TEXT), 1, 500) FROM cursorDiskKV WHERE key >= 'composerData:' AND key < 'composerData;'");
+      for (const row of rows) {
+        if (!row) continue;
+        const tab = row.indexOf('\t');
+        const id = row.slice('composerData:'.length, tab);
+        const head = row.slice(tab + 1);
+        const iso = head.match(/"createdAt"\s*:\s*"([^"]+)"/);
+        const ms = head.match(/"createdAt"\s*:\s*(\d{13})/);
+        addSession('composer:' + id, iso ? toDate(iso[1]) : ms ? toDate(Number(ms[1])) : null);
       }
 
       // Count bubbleId pairs as interaction count
-      const bubbleCount = sqlExec(dbPath,
-        "SELECT COUNT(*) FROM cursorDiskKV WHERE key LIKE 'bubbleId:%'"
-      );
-      if (bubbleCount) result.promptCount += Math.floor((parseInt(bubbleCount) || 0) / 2);
+      result.promptCount += Math.floor(count(dbPath,
+        "SELECT COUNT(*) FROM cursorDiskKV WHERE key >= 'bubbleId:' AND key < 'bubbleId;'") / 2);
     }
 
     // ────────────────────────────────────────────────────────────────────────
     // LEGACY FORMAT: ItemTable — single blob keys
     // ────────────────────────────────────────────────────────────────────────
     if (hasItemTable) {
-      const getVal = (key) => {
-        const out = sqlExec(dbPath,
-          `SELECT value FROM ItemTable WHERE key='${key}' LIMIT 1;`
-        );
-        return out ? safeJsonParse(out) : null;
-      };
+      const getVal = (key) => readItemJson(dbPath, key);
 
       // Composer sessions (legacy single-blob format)
       const composerData = getVal('composer.composerData');
-      if (composerData?.allComposers) {
-        result.composerSessions += composerData.allComposers.length;
-
-        // Extract dates from legacy format too
-        for (const c of composerData.allComposers) {
-          if (c.createdAt) {
-            const d = typeof c.createdAt === 'number'
-              ? new Date(c.createdAt).toISOString().slice(0, 10)
-              : String(c.createdAt).slice(0, 10);
-            if (/^\d{4}-\d{2}-\d{2}$/.test(d)) result.dates.push(d);
-          }
-        }
+      for (const c of Array.isArray(composerData?.allComposers) ? composerData.allComposers : []) {
+        addSession(c?.composerId ? 'composer:' + c.composerId : null, toDate(c?.createdAt));
       }
 
       // Legacy chat tabs
       const chatData = getVal('workbench.panel.aichat.view.aichat.chatdata');
-      if (chatData?.tabs) result.composerSessions += chatData.tabs.length;
+      for (const tab of Array.isArray(chatData?.tabs) ? chatData.tabs : []) {
+        addSession(tab?.tabId ? 'tab:' + tab.tabId : null, null);
+      }
 
       // Prompt history (older builds)
       const prompts = getVal('aiService.prompts');
@@ -187,14 +154,12 @@ function readVscdb(dbPath) {
 
       // BubbleId pairs in ItemTable (message-level, only if cursorDiskKV wasn't found)
       if (!hasCursorDiskKV) {
-        const cnt = sqlExec(dbPath,
-          "SELECT COUNT(*) FROM ItemTable WHERE key LIKE 'bubbleId:%';"
-        );
-        if (cnt) result.promptCount += Math.floor((parseInt(cnt) || 0) / 2);
+        result.promptCount += Math.floor(count(dbPath,
+          "SELECT COUNT(*) FROM ItemTable WHERE key LIKE 'bubbleId:%'") / 2);
       }
     }
 
-  } catch { /* sqlite3 not available or db unreadable */ }
+  }
 
   return result;
 }
@@ -212,49 +177,69 @@ export async function parse(options = {}) {
   const dbs = findVscdbFiles(baseDir);
   if (dbs.length === 0) return null;
 
-  const totals = { composerSessions: 0, promptCount: 0, generationCount: 0 };
-  const allDates = [];
+  const totals = { promptCount: 0, generationCount: 0 };
+  const unique = new Map();   // session identity → date, merged across every database
+  const errors = [];
 
   for (const db of dbs) {
     try {
       const data = readVscdb(db.path);
-      totals.composerSessions += data.composerSessions;
+      for (const [k, date] of data.sessions) if (!unique.has(k) || (date && !unique.get(k))) unique.set(k, date);
       totals.promptCount      += data.promptCount;
       totals.generationCount  += data.generationCount;
-      allDates.push(...data.dates);
-    } catch {}
+    } catch (err) {
+      if (err.code === 'sqlite-unavailable') throw err;
+      errors.push({ db: db.path, message: err.message });
+    }
   }
+  if (errors.length === dbs.length) throw new Error(`could not read any Cursor database (${errors[0].message})`);
 
-  const sessions = totals.composerSessions;
+  const sessions = unique.size;
   const interactions = totals.promptCount || totals.generationCount;
 
   // Build daily heatmap from extracted session createdAt dates
   const dateMap = new Map();
-  for (const date of allDates) {
-    dateMap.set(date, (dateMap.get(date) || 0) + 1);
+  for (const date of unique.values()) {
+    if (date) dateMap.set(date, (dateMap.get(date) || 0) + 1);
   }
 
   const daily = Array.from(dateMap.entries())
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, count]) => ({ date, toolKey: 'cursor', sessions: count }));
 
-  // Return null only if nothing was found at all
-  if (sessions === 0 && interactions === 0) return null;
+  // A database that could not be read (timeout, corruption, lock) may hold the
+  // sessions that are missing, so it can never be reported as "no data" or as a
+  // clean scan:
+  //   all readable → complete     some unreadable → partial (incomplete) + reasons
+  //   none readable → thrown above (failed)     no database → null (absent)
+  // Reasons can reach the shareable card, so paths are shown relative to ~.
+  const home = os.homedir();
+  const tilde = (s) => (home && home.length > 1 ? String(s).split(home).join('~') : String(s));
+  const reasons = errors.map(e => tilde(`${e.db} could not be read (${String(e.message).split('\n')[0]})`));
+  if (sessions === 0 && interactions === 0) {
+    if (errors.length) throw new Error(`could not read ${errors.length} of ${dbs.length} Cursor databases; no data in the rest (${reasons[0]})`);
+    return null;
+  }
+  const coverage = errors.length ? { status: 'partial', reasons } : { status: 'complete', reasons: [] };
+  const diagnostics = reasons.map(message => ({ level: 'warn', code: 'source-unreadable', message }));
 
   return {
     tool: 'cursor',
     sessions: sessions || interactions,
-    tokens_used:   0,
-    cost_usd:      0,
-    lines_written: 0,
+    tokens_used:   null,   // not stored locally by Cursor
+    cost_usd:      null,
+    lines_written: null,
     daily,
+    coverage,
+    diagnostics,
     _raw: {
-      composerSessions: totals.composerSessions,
+      composerSessions: sessions,
       promptCount:      totals.promptCount,
       generationCount:  totals.generationCount,
       dbCount:          dbs.length,
       heatmapDays:      daily.length,
       sessionSource:    sessions > 0 ? 'sqlite' : 'prompts',
+      unreadableDbs:    errors.length,
     },
   };
 }

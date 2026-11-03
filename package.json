@@ -1,25 +1,29 @@
 {
   "name": "stackpulse",
-  "version": "3.2.3",
-  "description": "Generate beautiful shareable cards for your AI coding tool usage — Claude Code, Codex, Cursor, Gemini CLI, Aider, and 9 more",
+  "version": "3.3.0",
+  "description": "Generate beautiful shareable cards for your AI coding tool usage — Claude Code, Codex, Cursor, Gemini CLI, Aider, and 8 more",
   "main": "index.js",
   "type": "module",
   "bin": {
-    "stackpulse": "./index.js"
+    "stackpulse": "./bin/stackpulse.js"
   },
   "files": [
+    "bin/",
     "index.js",
     "generator.js",
     "parsers/",
+    "src/",
     "README.md",
     "LICENSE",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "!src/collectors/sharded.js"
   ],
   "scripts": {
     "start": "node index.js",
-    "prepublishOnly": "node --check index.js && node --check generator.js",
+    "prepublishOnly": "node --check index.js && node --check generator.js && npm test",
     "dev:website": "npm run dev --prefix website",
-    "build:website": "npm run build --prefix website"
+    "build:website": "npm run build --prefix website",
+    "test": "node tests/run.js"
   },
   "repository": {
     "type": "git",
@@ -54,10 +58,11 @@
   "author": "Krishna Sathvik Mantripragada (https://github.com/KrishnaSathvik)",
   "license": "MIT",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.12.0"
   },
   "dependencies": {
     "@inquirer/prompts": "^8.3.0",
+    "ccusage": "20.0.46",
     "chalk": "^5.6.0",
     "commander": "^14.0.0",
     "figlet": "^1.11.0",

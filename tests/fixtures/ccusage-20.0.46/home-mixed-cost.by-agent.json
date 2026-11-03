@@ -1,0 +1,128 @@
+{
+  "daily": [
+    {
+      "agent": "all",
+      "agents": [
+        {
+          "agent": "claude",
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 3100,
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.5,
+              "inputTokens": 3000,
+              "missingPricing": true,
+              "modelName": "claude-zephyr-9-1",
+              "outputTokens": 300,
+              "storedCost": 0.5
+            },
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.0018,
+              "inputTokens": 100,
+              "modelName": "claude-sonnet-4-5",
+              "outputTokens": 100
+            }
+          ],
+          "modelsUsed": [
+            "claude-zephyr-9-1",
+            "claude-sonnet-4-5"
+          ],
+          "outputTokens": 400,
+          "totalCost": 0.5018,
+          "totalTokens": 3500
+        }
+      ],
+      "cacheCreationTokens": 0,
+      "cacheReadTokens": 0,
+      "inputTokens": 3100,
+      "metadata": {
+        "agents": [
+          "claude"
+        ]
+      },
+      "modelBreakdowns": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "cost": 0.5,
+          "inputTokens": 3000,
+          "missingPricing": true,
+          "modelName": "claude-zephyr-9-1",
+          "outputTokens": 300,
+          "storedCost": 0.5
+        },
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "cost": 0.0018,
+          "inputTokens": 100,
+          "modelName": "claude-sonnet-4-5",
+          "outputTokens": 100
+        }
+      ],
+      "modelsUsed": [
+        "claude-sonnet-4-5",
+        "claude-zephyr-9-1"
+      ],
+      "outputTokens": 400,
+      "period": "2026-10-25",
+      "totalCost": 0.5018,
+      "totalTokens": 3500
+    }
+  ],
+  "session": [
+    {
+      "agent": "claude",
+      "cacheCreationTokens": 0,
+      "cacheReadTokens": 0,
+      "inputTokens": 3100,
+      "metadata": {
+        "lastActivity": "2026-10-25T10:02:00.000Z"
+      },
+      "modelBreakdowns": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "cost": 0.5,
+          "inputTokens": 3000,
+          "missingPricing": true,
+          "modelName": "claude-zephyr-9-1",
+          "outputTokens": 300,
+          "storedCost": 0.5
+        },
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "cost": 0.0018,
+          "inputTokens": 100,
+          "modelName": "claude-sonnet-4-5",
+          "outputTokens": 100
+        }
+      ],
+      "modelsUsed": [
+        "claude-zephyr-9-1",
+        "claude-sonnet-4-5"
+      ],
+      "outputTokens": 400,
+      "period": "33333333-cccc-4ccc-8ccc-000000000001",
+      "totalCost": 0.5018,
+      "totalTokens": 3500
+    }
+  ],
+  "totals": {
+    "cacheCreationTokens": 0,
+    "cacheReadTokens": 0,
+    "inputTokens": 3100,
+    "outputTokens": 400,
+    "totalCost": 0.5018,
+    "totalTokens": 3500,
+    "unpricedModels": [
+      "claude-zephyr-9-1"
+    ]
+  }
+}

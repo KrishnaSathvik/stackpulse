@@ -7,11 +7,11 @@ import ora from 'ora';
 import figlet from 'figlet';
 import fs from 'fs';
 import path from 'path';
-import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import yaml from 'js-yaml';
 import { Command } from 'commander';
 import { generateHTML } from './generator.js';
+import { parseEnteredCost } from './src/core/cost.js';
 import { detect as detectClaudeCode,  parse as parseClaudeCode  } from './parsers/claude-code.js';
 import { detect as detectCodex,       parse as parseCodex       } from './parsers/codex.js';
 import { detect as detectOpenCode,    parse as parseOpenCode    } from './parsers/opencode.js';
@@ -27,6 +27,7 @@ import { detect as detectKiloCode,    parse as parseKiloCode    } from './parser
 import { detect as detectAider,       parse as parseAider       } from './parsers/aider.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PKG_VERSION = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf-8')).version;
 
 // ─── Tool registry ────────────────────────────────────────────────────────────
 export const AI_TOOLS = [
@@ -65,6 +66,7 @@ const THEME_CHOICES = [
   { name: '\ud83c\udf3f  Verdant   \u2014 ' + chalk.hex('#22C55E')('Forest green'),               value: 'verdant' },
   { name: '\ud83d\udc97  Neon      \u2014 ' + chalk.hex('#E879F9')('Pink synthwave'),             value: 'neon'    },
 ];
+const THEME_KEYS = THEME_CHOICES.map(c => c.value);
 
 // ─── Parser + detector maps ───────────────────────────────────────────────────
 const PARSERS = {
@@ -91,15 +93,21 @@ function stepHeader(n, total, title, hint) {
   console.log(rule() + '\n');
 }
 
+// Sub-cent costs must not print as "$0.00", which reads as free.
+function fmtUsd(v) {
+  return v > 0 && v < 0.005 ? '<$0.01' : `$${Number(v).toFixed(2)}`;
+}
+
 function fmtTokens(k) {
-  return k >= 1000 ? `${(k / 1000).toFixed(1)}M` : `${k}K`;
+  // k is in thousands of tokens: 1e6 K = 1B ("5.36B", not "5363.7M").
+  return k >= 1e6 ? `${(k / 1e6).toFixed(2)}B` : k >= 1000 ? `${(k / 1000).toFixed(1)}M` : `${k}K`;
 }
 
 function buildStatParts(metrics) {
   const parts = [];
   if (metrics.sessions)      parts.push(chalk.white(`${metrics.sessions} sessions`));
   if (metrics.tokens_used)   parts.push(chalk.cyan(fmtTokens(metrics.tokens_used) + ' tokens'));
-  if (metrics.cost_usd)      parts.push(chalk.yellow(`$${metrics.cost_usd.toFixed(2)}`));
+  if (metrics.cost_usd)      parts.push(chalk.yellow(fmtUsd(metrics.cost_usd)));
   if (metrics.commits)       parts.push(chalk.green(`${metrics.commits} commits`));
   if (metrics.lines_written) parts.push(chalk.dim(`${Number(metrics.lines_written).toLocaleString()} lines`));
   return parts.join(chalk.dim('  \u00b7  ')) || chalk.dim('\u2014');
@@ -135,15 +143,20 @@ async function scanMachineWithFeedback() {
           const parts = [
             data.sessions    ? `${data.sessions} sessions`            : null,
             data.tokens_used ? fmtTokens(data.tokens_used) + ' tokens' : null,
-            data.cost_usd    ? `$${data.cost_usd.toFixed(2)}`         : null,
+            data.cost_usd    ? fmtUsd(data.cost_usd)                  : null,
             data.commits     ? `${data.commits} commits`              : null,
           ].filter(Boolean).join('  \u00b7  ');
-          console.log(`  ${chalk.green('\u25cf')}  ${chalk.white.bold(name)} ${chalk.green(parts)}                    `);
+          const incomplete = data.coverage?.status === 'partial' ? chalk.yellow('  (incomplete)') : '';
+          console.log(`  ${chalk.green('\u25cf')}  ${chalk.white.bold(name)} ${chalk.green(parts)}${incomplete}                    `);
+          for (const d of data.diagnostics || []) {
+            console.log(`     ${chalk.yellow('\u26a0')}  ${chalk.yellow(d.message)}`);
+          }
         } else {
           console.log(`  ${chalk.yellow('\u25cb')}  ${chalk.dim(name)} ${chalk.dim('installed \u2014 no data yet')}    `);
         }
-      } catch {
-        console.log(`  ${chalk.dim('\u00d7')}  ${chalk.dim(name)} ${chalk.dim('could not read data')}    `);
+      } catch (err) {
+        const why = err?.message ? ` (${String(err.message).split('\n')[0].slice(0, 80)})` : '';
+        console.log(`  ${chalk.red('\u00d7')}  ${chalk.dim(name)} ${chalk.dim('could not read data' + why)}    `);
       }
     })
   );
@@ -178,7 +191,7 @@ function buildShareLink(cardData) {
     const parts = [];
     if (t.metrics.sessions)    parts.push(Number(t.metrics.sessions).toLocaleString() + ' sessions');
     if (t.metrics.tokens_used) parts.push(fmtTokens(t.metrics.tokens_used) + ' tokens');
-    if (t.metrics.cost_usd)    parts.push('$' + t.metrics.cost_usd.toFixed(2));
+    if (t.metrics.cost_usd)    parts.push(fmtUsd(t.metrics.cost_usd));
     return (t.icon || '\u25c6') + ' ' + t.name + (parts.length ? ': ' + parts.join(' \u00b7 ') : '');
   }).join('\n');
 
@@ -188,7 +201,7 @@ function buildShareLink(cardData) {
   const summaryParts  = [];
   if (totalSessions) summaryParts.push(totalSessions.toLocaleString() + ' sessions');
   if (totalTokens)   summaryParts.push(fmtTokens(totalTokens) + ' tokens');
-  if (totalCost)     summaryParts.push('$' + totalCost.toFixed(2));
+  if (totalCost)     summaryParts.push(fmtUsd(totalCost));
 
   const text = [
     cardData.title || 'My AI Coding Stack',
@@ -206,24 +219,38 @@ function buildShareLink(cardData) {
 function printBanner() {
   process.stdout.write('\x1Bc'); // reset terminal cleanly
   console.log(chalk.cyan(figlet.textSync('stackpulse', { font: 'Slant' })));
-  console.log(chalk.dim('  stackpulse v3.2.0  \u00b7  Shareable card for your AI coding stack'));
+  console.log(chalk.dim('  stackpulse v' + PKG_VERSION + '  \u00b7  Shareable card for your AI coding stack'));
   console.log(chalk.dim('  ' + AI_TOOLS.length + ' tools supported  \u00b7  github.com/KrishnaSathvik/stackpulse\n'));
 }
 
+function fail(message) {
+  console.error(chalk.red('\n  ✖ ' + message + '\n'));
+  process.exit(1);
+}
+
 function loadConfig(filePath) {
-  const content = fs.readFileSync(filePath, 'utf-8');
-  return path.extname(filePath).toLowerCase().startsWith('.y') ? yaml.load(content) : JSON.parse(content);
+  const kind = path.extname(filePath).toLowerCase().startsWith('.y') ? 'YAML' : 'JSON';
+  let content, cfg;
+  try { content = fs.readFileSync(filePath, 'utf-8'); }
+  catch (err) { fail(`Cannot read config file ${filePath}: ${err.code === 'ENOENT' ? 'file not found' : err.message}`); }
+  try { cfg = kind === 'YAML' ? yaml.load(content) : JSON.parse(content); }
+  catch (err) { fail(`Config file ${filePath} is not valid ${kind}: ${String(err.message).split('\n')[0]}`); }
+  if (cfg == null || typeof cfg !== 'object' || Array.isArray(cfg)) fail(`Config file ${filePath} must contain a mapping of settings (title, theme, metrics, tools).`);
+  return cfg;
 }
 
 function runFromConfig(configPath, opts) {
   const cfg  = loadConfig(configPath);
+  // Command-line flags override the file, as --help documents.
+  for (const k of ['title', 'timeframe', 'username', 'theme']) if (opts[k] !== undefined) cfg[k] = opts[k];
+  if (cfg.theme !== undefined && !THEME_KEYS.includes(cfg.theme)) fail(`Unknown theme "${cfg.theme}" in ${configPath}. Choose one of: ${THEME_KEYS.join(', ')}.`);
   const keys = Object.keys(cfg.tools || {});
   const mets = cfg.metrics || ['sessions', 'tokens_used', 'cost_usd'];
   const toolData = keys.map(key => {
     const meta = AI_TOOLS.find(t => t.key === key) || { name: key, key, color: '#64748B', icon: '\u25c6' };
     const src  = cfg.tools[key];
     return { ...meta, name: src.name || meta.name, color: src.color || meta.color,
-      metrics: mets.reduce((a, mk) => { a[mk] = src[mk] ?? 0; return a; }, {}) };
+      metrics: mets.reduce((a, mk) => { a[mk] = src[mk] ?? null; return a; }, {}) };
   });
   return {
     cardData: {
@@ -260,7 +287,9 @@ function scaffoldConfig(outPath) {
 async function writeOutputs({ cardData, outputBase }) {
   const htmlPath = path.resolve(`${outputBase}.html`);
 
-  const spinner = ora({ text: 'Rendering card\u2026', color: 'cyan' }).start();
+  // ora loops forever clearing lines when a TTY reports 0 columns (some CI/IDE terminals)
+  const spinnerOk = !!process.stdout.isTTY && (process.stdout.columns || 0) > 0;
+  const spinner = ora({ text: 'Rendering card\u2026', color: 'cyan', isEnabled: spinnerOk }).start();
   fs.writeFileSync(htmlPath, generateHTML(cardData), 'utf-8');
   spinner.succeed(chalk.green('Card ready!'));
 
@@ -282,6 +311,13 @@ async function writeOutputs({ cardData, outputBase }) {
     } else {
       console.log(`  ${tool.icon}  ${chalk.white.bold(tool.name.padEnd(16))} ${buildStatParts(tool.metrics)}`);
     }
+  }
+
+  const incomplete = parentTools.filter(t => t.coverage?.status === 'partial');
+  if (incomplete.length) {
+    console.log('');
+    console.log(chalk.yellow(`  \u26a0  Totals are incomplete \u2014 only partly read: ${incomplete.map(t => t.name).join(', ')}.`));
+    console.log(chalk.yellow('     These figures are lower bounds; see the notes on the card.'));
   }
 
   console.log('');
@@ -375,7 +411,10 @@ async function runWizard(opts = {}) {
       if (!(await confirm({ message: `  Enter ${tool.name} stats?`, default: true }))) continue;
       const entry = { sessions: parseInt(await input({ message: '    Sessions:', default: '0' })) || 0 };
       if (tool.hasTokens) entry.tokens_used = parseInt(await input({ message: '    Tokens used (K):', default: '0' })) || 0;
-      if (tool.hasCost)   entry.cost_usd    = parseFloat(await input({ message: '    Cost USD:', default: '0' })) || 0;
+      if (tool.hasCost) {
+        const cost = parseEnteredCost(await input({ message: '    Cost USD (blank if unknown):', default: '' }));
+        if (cost != null) entry.cost_usd = cost;
+      }
       if (key === 'aider') entry.commits    = parseInt(await input({ message: '    Git commits:', default: '0' })) || 0;
       manualData[key] = entry;
     }
@@ -440,9 +479,10 @@ async function runWizard(opts = {}) {
       const hint    = metaDef?.hint ? chalk.dim(` (${metaDef.hint})`) : '';
       const raw     = await input({
         message: `  ${metaDef?.icon || ''} ${metaDef?.label || mk}${hint}:`,
-        default: '0',
+        default: mk === 'cost_usd' ? '' : '0',
       });
-      const val = mk === 'cost_usd' ? parseFloat(raw) || 0 : parseInt(raw) || 0;
+      const val = mk === 'cost_usd' ? parseEnteredCost(raw) : (parseInt(raw, 10) || 0);
+      if (val == null) continue;
 
       // Spread the value evenly across selected tools that have sessions but 0 for this metric
       // Or just store on first tool with sessions
@@ -452,10 +492,13 @@ async function runWizard(opts = {}) {
         if (!manualData[primaryKey]) manualData[primaryKey] = {};
         if (!scanned[primaryKey])    scanned[primaryKey]    = { ...allData[primaryKey] };
         scanned[primaryKey][mk] = val;
+        if (mk === 'cost_usd') manualData[primaryKey].cost_usd = val;
       } else if (selectedKeys.length > 0) {
         const firstKey = selectedKeys[0];
         if (!scanned[firstKey]) scanned[firstKey] = {};
+        if (!manualData[firstKey]) manualData[firstKey] = {};
         scanned[firstKey][mk] = val;
+        if (mk === 'cost_usd') manualData[firstKey].cost_usd = val;
       }
     }
   }
@@ -513,26 +556,30 @@ async function runWizard(opts = {}) {
     const breakdown = wantsBreakdown
       ? (merged.modelBreakdown || []).filter(mb => (mb.tokens_used || 0) + (mb.cost_usd || 0) > 0)
       : [];
+    // Cost provenance from the adapter; a manually entered cost replaces it.
+    const costInfo = manualData[key]?.cost_usd != null
+      ? { kind: 'manual', status: 'complete', unpricedModels: [] }
+      : (merged.cost || null);
 
     if (breakdown.length > 1) {
       toolData.push({
-        ...meta, isParentHeader: true,
-        metrics: selectedMetrics.reduce((a, mk) => { a[mk] = merged[mk] ?? 0; return a; }, {}),
+        ...meta, isParentHeader: true, costInfo, coverage: merged.coverage || null,
+        metrics: selectedMetrics.reduce((a, mk) => { a[mk] = merged[mk] ?? null; return a; }, {}),
       });
       breakdown.forEach((mb, i) => toolData.push({
         ...meta, name: mb.displayName, parentName: meta.name,
-        isModelRow: true, isLast: i === breakdown.length - 1,
+        isModelRow: true, costInfo: mb.costStatus ? { status: mb.costStatus } : null, isLast: i === breakdown.length - 1,
         metrics: selectedMetrics.reduce((a, mk) => {
-          a[mk] = mk === 'tokens_used' ? (mb.tokens_used || 0)
-                : mk === 'cost_usd'    ? (mb.cost_usd    || 0)
-                : 0;
+          a[mk] = mk === 'tokens_used' ? (mb.tokens_used ?? null)
+                : mk === 'cost_usd'    ? (mb.cost_usd    ?? null)
+                : null;
           return a;
         }, {}),
       }));
     } else {
       toolData.push({
-        ...meta,
-        metrics: selectedMetrics.reduce((a, mk) => { a[mk] = merged[mk] ?? 0; return a; }, {}),
+        ...meta, costInfo, coverage: merged.coverage || null,
+        metrics: selectedMetrics.reduce((a, mk) => { a[mk] = merged[mk] ?? null; return a; }, {}),
       });
     }
   }
@@ -583,7 +630,7 @@ const program = new Command();
 program
   .name('stackpulse')
   .description('Generate a shareable card for your AI coding tool stack')
-  .version('3.2.0')
+  .version(PKG_VERSION)
   .option('-c, --config <file>', 'Load from YAML or JSON config file')
   .option('-o, --output <n>',    'Output base filename (no extension)', 'stackpulse')
   .option('--theme <theme>',     'Override theme')
@@ -594,6 +641,10 @@ program
   .parse(process.argv);
 
 const opts = program.opts();
+if (opts.theme !== undefined && !THEME_KEYS.includes(opts.theme)) {
+  console.error(`error: unknown theme '${opts.theme}'. Choose one of: ${THEME_KEYS.join(', ')}`);
+  process.exit(1);
+}
 
 (async () => {
   printBanner();

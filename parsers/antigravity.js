@@ -17,7 +17,8 @@
 import { existsSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
-import { execSync } from 'child_process';
+import { readItemJson } from '../src/utils/sqlite.js';
+import { collectorWithFallback } from '../src/collectors/ccusage.js';
 
 function getAntigravityDir() {
   const home = homedir();
@@ -50,41 +51,42 @@ function findDbs(baseDir) {
   return dbs;
 }
 
-function sqlExec(dbPath, query) {
-  try {
-    return execSync(
-      `sqlite3 "${dbPath}" "${query}" 2>/dev/null`,
-      { timeout: 5000, encoding: 'utf-8' }
-    ).trim();
-  } catch { return ''; }
-}
-
 function readDb(dbPath) {
   let sessions = 0;
 
   // Verified key: chat.ChatSessionStore.index
   // Format: {"version":1,"entries":{"sessionId1":{...},"sessionId2":{...}}}
-  const val = sqlExec(dbPath,
-    "SELECT value FROM ItemTable WHERE key='chat.ChatSessionStore.index' LIMIT 1;"
-  );
-
-  if (val) {
-    try {
-      const data = JSON.parse(val);
-      if (data.entries && typeof data.entries === 'object') {
-        sessions += Object.keys(data.entries).length;
-      }
-    } catch {}
+  const data = readItemJson(dbPath, 'chat.ChatSessionStore.index');
+  if (data?.entries && typeof data.entries === 'object') {
+    sessions += Object.keys(data.entries).length;
   }
 
   return { sessions };
 }
 
+/** Conversation roots the collector reads (tokens, models). */
+const conversationRoots = () => [
+  ...(process.env.ANTIGRAVITY_DATA_DIR || '').split(',').map(x => x.trim()).filter(Boolean),
+  ...['antigravity', 'antigravity-cli', 'antigravity-ide', 'antigravity-backup', 'antigravity-acp'].map(d => join(homedir(), '.gemini', d)),
+];
+
 export function detect() {
+  if (conversationRoots().some(existsSync)) return true;
   return getAntigravityDir() !== null;
 }
 
+/**
+ * One source per scan: the collector's conversation databases (tokens, models,
+ * estimated cost). Only when the collector has no Antigravity data does the IDE
+ * session index (session counts only) stand in — the two are never summed.
+ * If the collector could not read the conversation databases, the fallback is
+ * marked incomplete (or the failure raised) instead of looking like a clean scan.
+ */
 export async function parse(opts = {}) {
+  return collectorWithFallback('antigravity', () => parseIdeIndex(opts), opts);
+}
+
+export async function parseIdeIndex(opts = {}) {
   const baseDir = getAntigravityDir();
   if (!baseDir) return null;
 
@@ -97,7 +99,9 @@ export async function parse(opts = {}) {
     try {
       const { sessions } = readDb(db);
       totalSessions += sessions;
-    } catch {}
+    } catch (err) {
+      if (err.code === 'sqlite-unavailable') throw err;
+    }
   }
 
   // Only return data if there are actual sessions
@@ -106,11 +110,13 @@ export async function parse(opts = {}) {
   return {
     tool:        'antigravity',
     sessions:    totalSessions,
-    tokens_used: 0,
-    cost_usd:    0,
-    models:      ['Gemini 3 Pro'],
+    tokens_used: null,   // not in the session index
+    cost_usd:    null,
+    models:      [],      // the index does not record models; never guess
     modelBreakdown: [],
     daily:       [],
+    cost:        { usd: null, kind: 'unavailable', status: 'unavailable', partial: false, unpricedModels: [] },
+    provenance:  { adapter: 'antigravity-ide-index', sourceVersion: null, fallback: true },
     _meta: { dbCount: dbs.length },
   };
 }

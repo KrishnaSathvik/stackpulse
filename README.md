@@ -1,151 +1,105 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/KrishnaSathvik/stackpulse/master/assets/banner.png" alt="stackpulse" width="600"/>
+  <img src="website/public/logo-mark.png" alt="StackPulse" width="72" />
 </p>
 
-<h1 align="center">stackpulse</h1>
+<h1 align="center">StackPulse</h1>
 
 <p align="center">
-  <strong>Generate beautiful, shareable cards for your AI coding tool usage</strong>
-</p>
-
-<p align="center">
-  <a href="https://www.npmjs.com/package/stackpulse"><img src="https://img.shields.io/npm/v/stackpulse?color=10A37F&label=npm" alt="npm version"/></a>
-  <a href="https://github.com/KrishnaSathvik/stackpulse/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/stackpulse?color=D97706" alt="license"/></a>
-  <img src="https://img.shields.io/badge/tools-13%20supported-6E56CF" alt="tools"/>
-  <img src="https://img.shields.io/badge/node-%3E%3D18-333" alt="node"/>
+  <strong>Your AI coding tools. One clear picture.</strong>
 </p>
 
 <p align="center">
-  <a href="#quick-start">Quick Start</a> •
-  <a href="#supported-tools">Supported Tools</a> •
-  <a href="#themes">Themes</a> •
-  <a href="#config-file">Config File</a> •
-  <a href="#how-it-works">How It Works</a>
+  StackPulse is a local-first CLI that brings usage statistics from your AI coding tools into one clear, shareable report.
 </p>
 
----
+<p align="center">
+  <a href="https://www.npmjs.com/package/stackpulse"><img src="https://img.shields.io/npm/v/stackpulse?color=0891a2&label=npm" alt="npm version" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/KrishnaSathvik/stackpulse?color=20b486" alt="MIT license" /></a>
+  <img src="https://img.shields.io/badge/node-%E2%89%A5%2020.12-333333" alt="Node.js 20.12 or newer" />
+</p>
 
-## What is stackpulse?
+<p align="center">
+  <a href="https://stackpulse-three.vercel.app">Website</a> ·
+  <a href="https://stackpulse-three.vercel.app/docs/">Docs</a> ·
+  <a href="https://www.npmjs.com/package/stackpulse">npm</a> ·
+  <a href="https://github.com/KrishnaSathvik/stackpulse">GitHub</a>
+</p>
 
-**stackpulse** scans your machine for AI coding tools, reads their local usage data (sessions, tokens, cost), and generates a shareable HTML card with:
+<p align="center">
+  <img src="assets/card-dark.png" alt="A StackPulse report: totals, a sessions chart, per-tool and per-model rows, and a year of activity." width="840" />
+</p>
 
-- Per-tool usage breakdown with model details
-- Donut chart with smart metric selection
-- GitHub-style activity heatmap (per-tool rows)
-- Save as PNG, PDF, or share on X — all from the card itself
-
-One command. No API keys. No data leaves your machine.
+## Quick start
 
 ```bash
 npx stackpulse
 ```
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/KrishnaSathvik/stackpulse/master/assets/card-dark.png" alt="stackpulse dark theme" width="700"/>
-</p>
-
----
-
-## Quick Start
+Or install it and run it again later:
 
 ```bash
-# Run directly (no install needed)
-npx stackpulse
-
-# Or install globally
 npm install -g stackpulse
 stackpulse
 ```
 
-The interactive wizard walks you through 3 steps:
+StackPulse scans this machine for supported tools, asks which ones to include, and writes `stackpulse.html`. Open that file in a browser.
 
-1. **Select tools** — auto-detected from your machine + manual entry
-2. **Choose metrics** — sessions, tokens, cost, commits, lines written
-3. **Customize** — title, handle, theme, output filename
+## Features
 
-Output: `stackpulse.html` (open in browser, click "Save as PNG")
+- Finds supported AI coding tools and reads the usage they already store locally.
+- Reports sessions and day-by-day activity.
+- Breaks out tokens and models when a tool records them.
+- Shows recorded cost, or an API list-price estimate, when a price is known. An unknown cost stays unavailable. It is not shown as $0.
+- Draws an activity heatmap for each tool.
+- Writes one HTML report you can keep or share.
+- Includes seven report themes.
+- Runs locally. No account.
 
----
+## Supported tools
 
-## Supported Tools
+Each tool contributes what it actually records. A dash in the report means that number is not available.
 
-stackpulse supports **13 AI coding tools** across 4 data source types:
+| | Tool | What the report can show |
+| --- | --- | --- |
+| <img src="website/src/assets/tools/claude-code.svg" width="22" height="22" alt="" /> | Claude Code | Sessions, tokens, estimated cost, models |
+| <img src="website/src/assets/tools/codex.png" width="22" height="22" alt="" /> | OpenAI Codex | Sessions, tokens, estimated cost, models |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="website/src/assets/tools/cursor-dark.svg" /><img src="website/src/assets/tools/cursor.svg" width="22" height="22" alt="" /></picture> | Cursor | Composer sessions and activity |
+| <img src="website/src/assets/tools/gemini-cli.png" width="22" height="22" alt="" /> | Gemini CLI | Sessions, tokens, estimated cost, models |
+| <img src="website/src/assets/tools/opencode.svg" width="22" height="22" alt="" /> | OpenCode | Sessions, tokens, estimated cost, models |
+| <img src="website/src/assets/tools/amp.svg" width="22" height="22" alt="" /> | Amp | Sessions, tokens, estimated cost, models |
+| <img src="website/src/assets/tools/pi.svg" width="22" height="22" alt="" /> | Pi Agent | Sessions, tokens, estimated cost, models |
+| <img src="website/src/assets/tools/qwen-code.svg" width="22" height="22" alt="" /> | Qwen Code | Sessions, tokens, estimated cost, models |
+| <img src="website/src/assets/tools/kimi.png" width="22" height="22" alt="" /> | Kimi CLI | Sessions, tokens, estimated cost, models. Includes Kimi Code. |
+| <img src="website/src/assets/tools/antigravity.svg" width="22" height="22" alt="" /> | Antigravity | Sessions, tokens, estimated cost, models |
+| <img src="website/src/assets/tools/roo-code.png" width="22" height="22" alt="" /> | Roo Code | Tasks, tokens, recorded cost |
+| <img src="website/src/assets/tools/kilo-code.svg" width="22" height="22" alt="" /> | Kilo Code | Sessions, tokens, recorded cost |
+| <img src="website/src/assets/tools/aider.png" width="22" height="22" alt="" /> | Aider | Sessions, AI-attributed commits and lines |
 
-### Full data (sessions + tokens + cost + heatmap)
+Cursor does not store tokens or cost locally. If Antigravity has no conversation history, StackPulse reports its session count only.
 
-| Tool | Data Source | What's Read |
-|---|---|---|
-| **Claude Code** | `ccusage` | Sessions, tokens, cost, model breakdown, daily activity |
-| **OpenAI Codex** | `@ccusage/codex` | Sessions, tokens, cost, model breakdown, daily activity |
-| **OpenCode** | `@ccusage/opencode` | Sessions, tokens, cost, daily activity |
-| **Amp** (Sourcegraph) | `@ccusage/amp` | Sessions, tokens, cost, credits, daily activity |
-| **Pi Agent** | `@ccusage/pi` | Sessions, tokens, cost, daily activity |
+Estimated cost is an API list price, not a subscription bill. Roo Code and Kilo Code show the cost those tools recorded. You can add a tool by hand during the wizard. Leave cost blank if you do not know it, or enter `0` when the cost really is zero.
 
-### Token data (sessions + tokens + heatmap)
+## How it works
 
-| Tool | Data Source | What's Read |
-|---|---|---|
-| **Gemini CLI** | Local JSONL files | Sessions, tokens, daily activity |
-| **Qwen Code** | Local JSONL files | Sessions, tokens, estimated cost, daily activity |
-| **Kimi Code** | Local session files | Sessions, tokens, estimated cost, daily activity |
+1. **Run** `npx stackpulse`. It looks for the 13 tools above and reads their local usage.
+2. **Choose** the tools, the metrics, a title, a theme, and a file name.
+3. **Open** the HTML report. Use **Save as PDF** for the browser print dialog, or **Share on X** for a prefilled post.
 
-### Session data (sessions only)
+## Configuration
 
-| Tool | Data Source | What's Read |
-|---|---|---|
-| **Cursor** | SQLite `state.vscdb` | Composer sessions, daily activity from timestamps |
-| **Antigravity** | SQLite `state.vscdb` | Missions + agent sessions |
-| **Roo Code** | VS Code SQLite | Task history count |
-| **Kilo Code** | VS Code SQLite | Task history count |
-
-### Git-based
-
-| Tool | Data Source | What's Read |
-|---|---|---|
-| **Aider** | `.aider.chat.history.md` + git | Sessions, commits, lines written |
-
-Tools not installed on your machine can still be added manually during the wizard.
-
----
-
-## Themes
-
-7 built-in themes, selectable in the wizard or via `--theme`:
-
-| Theme | Vibe |
-|---|---|
-| `dark` | Terminal noir (default) |
-| `light` | Clean minimal |
-| `cosmic` | Deep space blues |
-| `forge` | Amber heat |
-| `arctic` | Ice blue on white |
-| `verdant` | Forest green |
-| `neon` | Pink synthwave |
+Skip the prompts with a YAML or JSON file.
 
 ```bash
-stackpulse --theme cosmic
+npx stackpulse --init stackpulse.yaml
+npx stackpulse --config stackpulse.yaml
 ```
 
----
-
-## Config File
-
-Skip the wizard entirely with a YAML or JSON config:
-
-```bash
-# Generate a starter config
-stackpulse --init ai-usage.yaml
-
-# Run from config
-stackpulse --config ai-usage.yaml
-```
-
-Example `ai-usage.yaml`:
+`--init` writes a starter file. A shorter config looks like this:
 
 ```yaml
 title: My AI Coding Stack
-timeframe: "2026 — All Time"
-username: latentengineer_
+timeframe: 2026 — All Time
+username: yourhandle
 theme: dark
 metrics:
   - sessions
@@ -156,126 +110,55 @@ tools:
     sessions: 312
     tokens_used: 23500
     cost_usd: 180
-  codex:
-    sessions: 88
-    tokens_used: 605400
-    cost_usd: 240
   cursor:
-    sessions: 1971
-  gemini:
-    sessions: 200
-    tokens_used: 8400
+    sessions: 540
 ```
 
----
+`tokens_used` is in thousands: `23500` means 23.5M tokens. Omit `cost_usd` when it is unknown. These flags override the file: `--theme`, `--title`, `--timeframe`, `--username`, and `--output`.
 
-## CLI Options
+| Flag | What it does |
+| --- | --- |
+| `-c, --config <file>` | Build from a YAML or JSON file |
+| `--init [file]` | Write a starter config (`ai-usage.yaml` if you omit the name) |
+| `-o, --output <name>` | File name without an extension. Default: `stackpulse` |
+| `--theme <name>` | `dark`, `light`, `cosmic`, `forge`, `arctic`, `verdant`, or `neon` |
+| `--title <text>` | Report title |
+| `--timeframe <text>` | Label such as `2026 — All Time` |
+| `--username <handle>` | Handle shown on the report |
+| `-V, --version` | Print the version |
+| `-h, --help` | Print help |
 
-```
-Usage: stackpulse [options]
+You can also put `lines_written`, `commits`, `hours_saved`, `files_edited`, or `bugs_fixed` in a config. Aider supplies commits and lines from your repositories. The other three are values you enter yourself.
 
-Options:
-  -V, --version          output version number
-  -c, --config <file>    load from YAML or JSON config file
-  -o, --output <name>    output base filename (default: "stackpulse")
-  --no-png               skip PNG export prompt
-  --theme <theme>        override theme (dark|light|cosmic|forge|arctic|verdant|neon)
-  --title <title>        override card title
-  --timeframe <range>    override timeframe text
-  --username <handle>    override handle
-  --init [file]          scaffold a starter YAML config
-  -h, --help             display help
-```
+## Report themes
 
----
+Pick one in the wizard, or pass `--theme`.
 
-## How It Works
+| Dark | Light | Cosmic | Forge |
+| --- | --- | --- | --- |
+| <img src="website/src/assets/shots/theme-dark.webp" alt="Dark theme" width="220" /> | <img src="website/src/assets/shots/theme-light.webp" alt="Light theme" width="220" /> | <img src="website/src/assets/shots/theme-cosmic.webp" alt="Cosmic theme" width="220" /> | <img src="website/src/assets/shots/theme-forge.webp" alt="Forge theme" width="220" /> |
 
-stackpulse reads **only local data** — nothing is sent to any server.
-
-```
-┌─────────────────────────────────────────────────────┐
-│                    Your Machine                      │
-│                                                      │
-│  ~/.claude/projects/    ──→  ccusage (sessions,      │
-│  ~/.codex/              ──→  tokens, cost, models)   │
-│  ~/.gemini/tmp/         ──→  JSONL parser (tokens)   │
-│  ~/.kimi/sessions/      ──→  JSON parser (tokens)    │
-│  ~/Library/.../Cursor/  ──→  SQLite reader (sessions)│
-│  .aider.chat.history.md ──→  File parser (sessions)  │
-│                                                      │
-│         ↓ all local ↓                                │
-│                                                      │
-│  ┌─────────────────────────────────────────────┐     │
-│  │              stackpulse.html                     │     │
-│  │  ┌─────┬──────────────────────────────┐     │     │
-│  │  │Donut│  Tool table with bars        │     │     │
-│  │  │chart│  + model breakdown           │     │     │
-│  │  └─────┴──────────────────────────────┘     │     │
-│  │  ┌────────────────────────────────────┐     │     │
-│  │  │  Per-tool activity heatmap         │     │     │
-│  │  └────────────────────────────────────┘     │     │
-│  │  [Save PNG] [Save PDF] [Share on X]         │     │
-│  └─────────────────────────────────────────────┘     │
-└─────────────────────────────────────────────────────┘
-```
-
----
-
-## Export Options
-
-The generated HTML card includes built-in export buttons:
-
-- **Save as PNG** — captures the full card at 2x resolution via html2canvas
-- **Save as PDF** — uses the browser's native print dialog
-- **Share on X** — pre-filled tweet with your tool stats
-
----
-
-## Requirements
-
-- **Node.js 18+**
-- **sqlite3 CLI** (for Cursor/Antigravity/Roo Code/Kilo Code parsing)
-- Tools you want to track must be installed and have local usage data
-
----
+| Arctic | Verdant | Neon |
+| --- | --- | --- |
+| <img src="website/src/assets/shots/theme-arctic.webp" alt="Arctic theme" width="220" /> | <img src="website/src/assets/shots/theme-verdant.webp" alt="Verdant theme" width="220" /> | <img src="website/src/assets/shots/theme-neon.webp" alt="Neon theme" width="220" /> |
 
 ## Privacy
 
-stackpulse is fully offline. It:
+StackPulse reads usage files that are already on your machine. It does not ask for an account or an API key, and it does not upload your usage.
 
-- Reads only local files on your machine
-- Never sends data to any server
-- Never requires API keys or authentication
-- The HTML output is a standalone file with no external dependencies (except Google Fonts)
+`npx` downloads the package from npm. The report is one HTML file saved where you choose. When you open it, the page loads JetBrains Mono and Space Grotesk from Google Fonts.
 
----
+## Requirements
+
+- Node.js 20.12 or newer. Node.js 22.13 or newer is recommended.
+- Verified on macOS and Linux. Windows is not verified.
+- Cursor, Roo Code, and Kilo Code are read from SQLite. That reader is built into Node.js 22.5 and newer. On Node.js 20, install the `sqlite3` command-line tool.
+- A large history needs enough free memory to read it.
 
 ## Contributing
 
-Contributions welcome! Especially:
-
-- **New tool parsers** — if you use an AI coding tool not listed above
-- **Themes** — add new visual themes to `generator.js`
-- **Bug reports** — especially from tools with untested data formats
-
-```bash
-git clone https://github.com/KrishnaSathvik/stackpulse.git
-cd stackpulse
-npm install
-node index.js
-```
-
----
+Issues and pull requests are welcome on [GitHub](https://github.com/KrishnaSathvik/stackpulse).
 
 ## License
 
-MIT © [Krishna Sathvik Mantripragada](https://github.com/KrishnaSathvik)
-
----
-
-<p align="center">
-  Built by <a href="https://x.com/latentengineer_">@latentengineer_</a> · 
-  <a href="https://github.com/KrishnaSathvik/stackpulse">GitHub</a> · 
-  <a href="https://www.npmjs.com/package/stackpulse">npm</a>
-</p>
+[MIT](LICENSE) © [Krishna Sathvik Mantripragada](https://github.com/KrishnaSathvik)

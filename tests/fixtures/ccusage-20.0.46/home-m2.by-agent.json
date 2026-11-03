@@ -1,0 +1,626 @@
+{
+  "daily": [
+    {
+      "agent": "all",
+      "agents": [
+        {
+          "agent": "qwen",
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 200,
+          "inputTokens": 1200,
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 200,
+              "cost": 0.00297,
+              "inputTokens": 1200,
+              "modelName": "qwen3-coder-plus",
+              "outputTokens": 300
+            }
+          ],
+          "modelsUsed": [
+            "qwen3-coder-plus"
+          ],
+          "outputTokens": 300,
+          "totalCost": 0.00297,
+          "totalTokens": 1750
+        }
+      ],
+      "cacheCreationTokens": 0,
+      "cacheReadTokens": 200,
+      "inputTokens": 1200,
+      "metadata": {
+        "agents": [
+          "qwen"
+        ]
+      },
+      "modelBreakdowns": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 200,
+          "cost": 0.00297,
+          "inputTokens": 1200,
+          "modelName": "qwen3-coder-plus",
+          "outputTokens": 300
+        }
+      ],
+      "modelsUsed": [
+        "qwen3-coder-plus"
+      ],
+      "outputTokens": 300,
+      "period": "2026-10-22",
+      "totalCost": 0.00297,
+      "totalTokens": 1750
+    },
+    {
+      "agent": "all",
+      "agents": [
+        {
+          "agent": "gemini",
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 500,
+          "inputTokens": 1500,
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 500,
+              "cost": 0.0069375,
+              "inputTokens": 1500,
+              "modelName": "gemini-2.5-pro",
+              "outputTokens": 400
+            }
+          ],
+          "modelsUsed": [
+            "gemini-2.5-pro"
+          ],
+          "outputTokens": 400,
+          "totalCost": 0.0069375,
+          "totalTokens": 2500
+        }
+      ],
+      "cacheCreationTokens": 0,
+      "cacheReadTokens": 500,
+      "inputTokens": 1500,
+      "metadata": {
+        "agents": [
+          "gemini"
+        ]
+      },
+      "modelBreakdowns": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 500,
+          "cost": 0.0069375,
+          "inputTokens": 1500,
+          "modelName": "gemini-2.5-pro",
+          "outputTokens": 400
+        }
+      ],
+      "modelsUsed": [
+        "gemini-2.5-pro"
+      ],
+      "outputTokens": 400,
+      "period": "2026-10-23",
+      "totalCost": 0.0069375,
+      "totalTokens": 2500
+    },
+    {
+      "agent": "all",
+      "agents": [
+        {
+          "agent": "gemini",
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 200,
+          "inputTokens": 1000,
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 200,
+              "cost": 0.0017100000000000001,
+              "inputTokens": 1000,
+              "modelName": "gemini-3-flash-preview",
+              "outputTokens": 300
+            }
+          ],
+          "modelsUsed": [
+            "gemini-3-flash-preview"
+          ],
+          "outputTokens": 300,
+          "totalCost": 0.0017100000000000001,
+          "totalTokens": 1600
+        }
+      ],
+      "cacheCreationTokens": 0,
+      "cacheReadTokens": 200,
+      "inputTokens": 1000,
+      "metadata": {
+        "agents": [
+          "gemini"
+        ]
+      },
+      "modelBreakdowns": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 200,
+          "cost": 0.0017100000000000001,
+          "inputTokens": 1000,
+          "modelName": "gemini-3-flash-preview",
+          "outputTokens": 300
+        }
+      ],
+      "modelsUsed": [
+        "gemini-3-flash-preview"
+      ],
+      "outputTokens": 300,
+      "period": "2026-10-24",
+      "totalCost": 0.0017100000000000001,
+      "totalTokens": 1600
+    },
+    {
+      "agent": "all",
+      "agents": [
+        {
+          "agent": "kimi",
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 200,
+          "inputTokens": 1000,
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 200,
+              "cost": 0.0009,
+              "inputTokens": 1000,
+              "modelName": "kimi-k2",
+              "outputTokens": 100
+            }
+          ],
+          "modelsUsed": [
+            "kimi-k2"
+          ],
+          "outputTokens": 100,
+          "totalCost": 0.0009,
+          "totalTokens": 1300
+        }
+      ],
+      "cacheCreationTokens": 0,
+      "cacheReadTokens": 200,
+      "inputTokens": 1000,
+      "metadata": {
+        "agents": [
+          "kimi"
+        ]
+      },
+      "modelBreakdowns": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 200,
+          "cost": 0.0009,
+          "inputTokens": 1000,
+          "modelName": "kimi-k2",
+          "outputTokens": 100
+        }
+      ],
+      "modelsUsed": [
+        "kimi-k2"
+      ],
+      "outputTokens": 100,
+      "period": "2026-10-25",
+      "totalCost": 0.0009,
+      "totalTokens": 1300
+    },
+    {
+      "agent": "all",
+      "agents": [
+        {
+          "agent": "kimi",
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 14848,
+          "inputTokens": 3064,
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 14848,
+              "cost": 0.00559048,
+              "inputTokens": 3064,
+              "modelName": "kimi-for-coding",
+              "outputTokens": 76
+            }
+          ],
+          "modelsUsed": [
+            "kimi-for-coding"
+          ],
+          "outputTokens": 76,
+          "totalCost": 0.00559048,
+          "totalTokens": 17988
+        }
+      ],
+      "cacheCreationTokens": 0,
+      "cacheReadTokens": 14848,
+      "inputTokens": 3064,
+      "metadata": {
+        "agents": [
+          "kimi"
+        ]
+      },
+      "modelBreakdowns": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 14848,
+          "cost": 0.00559048,
+          "inputTokens": 3064,
+          "modelName": "kimi-for-coding",
+          "outputTokens": 76
+        }
+      ],
+      "modelsUsed": [
+        "kimi-for-coding"
+      ],
+      "outputTokens": 76,
+      "period": "2026-10-26",
+      "totalCost": 0.00559048,
+      "totalTokens": 17988
+    },
+    {
+      "agent": "all",
+      "agents": [
+        {
+          "agent": "antigravity",
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 100,
+          "inputTokens": 1300,
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 100,
+              "cost": 0.0068200000000000005,
+              "inputTokens": 1300,
+              "modelName": "gemini-3-pro",
+              "outputTokens": 350
+            }
+          ],
+          "modelsUsed": [
+            "gemini-3-pro"
+          ],
+          "outputTokens": 350,
+          "totalCost": 0.0068200000000000005,
+          "totalTokens": 1750
+        }
+      ],
+      "cacheCreationTokens": 0,
+      "cacheReadTokens": 100,
+      "inputTokens": 1300,
+      "metadata": {
+        "agents": [
+          "antigravity"
+        ]
+      },
+      "modelBreakdowns": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 100,
+          "cost": 0.0068200000000000005,
+          "inputTokens": 1300,
+          "modelName": "gemini-3-pro",
+          "outputTokens": 350
+        }
+      ],
+      "modelsUsed": [
+        "gemini-3-pro"
+      ],
+      "outputTokens": 350,
+      "period": "2026-10-27",
+      "totalCost": 0.0068200000000000005,
+      "totalTokens": 1750
+    },
+    {
+      "agent": "all",
+      "agents": [
+        {
+          "agent": "kilo",
+          "cacheCreationTokens": 20,
+          "cacheReadTokens": 10,
+          "inputTokens": 100,
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 20,
+              "cacheReadTokens": 10,
+              "cost": 0.02,
+              "inputTokens": 100,
+              "modelName": "claude-sonnet-4-20250514",
+              "outputTokens": 50,
+              "storedCost": 0.02
+            }
+          ],
+          "modelsUsed": [
+            "claude-sonnet-4-20250514"
+          ],
+          "outputTokens": 50,
+          "totalCost": 0.02,
+          "totalTokens": 185
+        }
+      ],
+      "cacheCreationTokens": 20,
+      "cacheReadTokens": 10,
+      "inputTokens": 100,
+      "metadata": {
+        "agents": [
+          "kilo"
+        ]
+      },
+      "modelBreakdowns": [
+        {
+          "cacheCreationTokens": 20,
+          "cacheReadTokens": 10,
+          "cost": 0.02,
+          "inputTokens": 100,
+          "modelName": "claude-sonnet-4-20250514",
+          "outputTokens": 50,
+          "storedCost": 0.02
+        }
+      ],
+      "modelsUsed": [
+        "claude-sonnet-4-20250514"
+      ],
+      "outputTokens": 50,
+      "period": "2026-10-28",
+      "totalCost": 0.02,
+      "totalTokens": 185
+    },
+    {
+      "agent": "all",
+      "agents": [
+        {
+          "agent": "kilo",
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 200,
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.05,
+              "inputTokens": 200,
+              "modelName": "claude-sonnet-4-20250514",
+              "outputTokens": 30,
+              "storedCost": 0.05
+            }
+          ],
+          "modelsUsed": [
+            "claude-sonnet-4-20250514"
+          ],
+          "outputTokens": 30,
+          "totalCost": 0.05,
+          "totalTokens": 230
+        }
+      ],
+      "cacheCreationTokens": 0,
+      "cacheReadTokens": 0,
+      "inputTokens": 200,
+      "metadata": {
+        "agents": [
+          "kilo"
+        ]
+      },
+      "modelBreakdowns": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "cost": 0.05,
+          "inputTokens": 200,
+          "modelName": "claude-sonnet-4-20250514",
+          "outputTokens": 30,
+          "storedCost": 0.05
+        }
+      ],
+      "modelsUsed": [
+        "claude-sonnet-4-20250514"
+      ],
+      "outputTokens": 30,
+      "period": "2026-10-29",
+      "totalCost": 0.05,
+      "totalTokens": 230
+    }
+  ],
+  "session": [
+    {
+      "agent": "kilo",
+      "cacheCreationTokens": 0,
+      "cacheReadTokens": 0,
+      "inputTokens": 200,
+      "modelBreakdowns": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "cost": 0.05,
+          "inputTokens": 200,
+          "modelName": "claude-sonnet-4-20250514",
+          "outputTokens": 30,
+          "storedCost": 0.05
+        }
+      ],
+      "modelsUsed": [
+        "claude-sonnet-4-20250514"
+      ],
+      "outputTokens": 30,
+      "period": "ks-2",
+      "totalCost": 0.05,
+      "totalTokens": 230
+    },
+    {
+      "agent": "kilo",
+      "cacheCreationTokens": 20,
+      "cacheReadTokens": 10,
+      "inputTokens": 100,
+      "modelBreakdowns": [
+        {
+          "cacheCreationTokens": 20,
+          "cacheReadTokens": 10,
+          "cost": 0.02,
+          "inputTokens": 100,
+          "modelName": "claude-sonnet-4-20250514",
+          "outputTokens": 50,
+          "storedCost": 0.02
+        }
+      ],
+      "modelsUsed": [
+        "claude-sonnet-4-20250514"
+      ],
+      "outputTokens": 50,
+      "period": "ks-1",
+      "totalCost": 0.02,
+      "totalTokens": 185
+    },
+    {
+      "agent": "gemini",
+      "cacheCreationTokens": 0,
+      "cacheReadTokens": 500,
+      "inputTokens": 1500,
+      "modelBreakdowns": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 500,
+          "cost": 0.0069375,
+          "inputTokens": 1500,
+          "modelName": "gemini-2.5-pro",
+          "outputTokens": 400
+        }
+      ],
+      "modelsUsed": [
+        "gemini-2.5-pro"
+      ],
+      "outputTokens": 400,
+      "period": "g-1",
+      "totalCost": 0.0069375,
+      "totalTokens": 2500
+    },
+    {
+      "agent": "antigravity",
+      "cacheCreationTokens": 0,
+      "cacheReadTokens": 100,
+      "inputTokens": 1300,
+      "metadata": {
+        "lastActivity": "2026-10-27T12:01:00.000Z"
+      },
+      "modelBreakdowns": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 100,
+          "cost": 0.0068200000000000005,
+          "inputTokens": 1300,
+          "modelName": "gemini-3-pro",
+          "outputTokens": 350
+        }
+      ],
+      "modelsUsed": [
+        "gemini-3-pro"
+      ],
+      "outputTokens": 350,
+      "period": "conv-1",
+      "totalCost": 0.0068200000000000005,
+      "totalTokens": 1750
+    },
+    {
+      "agent": "kimi",
+      "cacheCreationTokens": 0,
+      "cacheReadTokens": 14848,
+      "inputTokens": 3064,
+      "modelBreakdowns": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 14848,
+          "cost": 0.00559048,
+          "inputTokens": 3064,
+          "modelName": "kimi-for-coding",
+          "outputTokens": 76
+        }
+      ],
+      "modelsUsed": [
+        "kimi-for-coding"
+      ],
+      "outputTokens": 76,
+      "period": "session-b",
+      "totalCost": 0.00559048,
+      "totalTokens": 17988
+    },
+    {
+      "agent": "qwen",
+      "cacheCreationTokens": 0,
+      "cacheReadTokens": 200,
+      "inputTokens": 1200,
+      "metadata": {
+        "lastActivity": "2026-10-22T09:00:05.000Z"
+      },
+      "modelBreakdowns": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 200,
+          "cost": 0.00297,
+          "inputTokens": 1200,
+          "modelName": "qwen3-coder-plus",
+          "outputTokens": 300
+        }
+      ],
+      "modelsUsed": [
+        "qwen3-coder-plus"
+      ],
+      "outputTokens": 300,
+      "period": "sess-1",
+      "totalCost": 0.00297,
+      "totalTokens": 1750
+    },
+    {
+      "agent": "gemini",
+      "cacheCreationTokens": 0,
+      "cacheReadTokens": 200,
+      "inputTokens": 1000,
+      "modelBreakdowns": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 200,
+          "cost": 0.0017100000000000001,
+          "inputTokens": 1000,
+          "modelName": "gemini-3-flash-preview",
+          "outputTokens": 300
+        }
+      ],
+      "modelsUsed": [
+        "gemini-3-flash-preview"
+      ],
+      "outputTokens": 300,
+      "period": "g-2",
+      "totalCost": 0.0017100000000000001,
+      "totalTokens": 1600
+    },
+    {
+      "agent": "kimi",
+      "cacheCreationTokens": 0,
+      "cacheReadTokens": 200,
+      "inputTokens": 1000,
+      "modelBreakdowns": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 200,
+          "cost": 0.0009,
+          "inputTokens": 1000,
+          "modelName": "kimi-k2",
+          "outputTokens": 100
+        }
+      ],
+      "modelsUsed": [
+        "kimi-k2"
+      ],
+      "outputTokens": 100,
+      "period": "session-a",
+      "totalCost": 0.0009,
+      "totalTokens": 1300
+    }
+  ],
+  "totals": {
+    "cacheCreationTokens": 20,
+    "cacheReadTokens": 16058,
+    "inputTokens": 9364,
+    "outputTokens": 1606,
+    "totalCost": 0.09492798,
+    "totalTokens": 27303
+  }
+}
