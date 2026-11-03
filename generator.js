@@ -96,14 +96,19 @@ export function generateHTML(input) {
     metric.key === 'cost_usd' && val != null && isPartialCost(tool.costInfo) ? '<sup class="s-flag">*</sup>' : '';
 
   // ── Header summary ─────────────────────────────────────────────────────────
+  // The stat strip already shows sessions, tokens and cost. The visible subtitle
+  // only adds something the strip does not: an incomplete-data warning, or a
+  // tool/metric count when those totals are absent. Share text and social meta
+  // still carry the numbers.
   const hdrParts = [];
   if (totals['sessions'])    hdrParts.push(totals['sessions'].toLocaleString() + (totals['sessions'] === 1 ? ' session' : ' sessions'));
   if (totals['tokens_used']) hdrParts.push(fmtVal(totals['tokens_used'], { key: 'tokens_used' }) + ' tokens');
   if (totals['cost_usd'])    hdrParts.push(fmtVal(totals['cost_usd'], { key: 'cost_usd' }));
-  if (incomplete.length && hdrParts.length) hdrParts.push('incomplete data');
-  const hdrSub = hdrParts.length
-    ? hdrParts.join(' \u00b7 ')
-    : topLevel.length + ' tool' + (topLevel.length !== 1 ? 's' : '') + ' \u00b7 ' + metrics.length + ' metric' + (metrics.length !== 1 ? 's' : '');
+  const fallbackSummary = topLevel.length + ' tool' + (topLevel.length !== 1 ? 's' : '') + ' \u00b7 ' + metrics.length + ' metric' + (metrics.length !== 1 ? 's' : '');
+  const shareParts = hdrParts.length ? hdrParts.slice() : [fallbackSummary];
+  if (incomplete.length) shareParts.push('incomplete data');
+  const shareSummary = shareParts.join(' \u00b7 ');
+  const hdrSub = incomplete.length ? 'incomplete data' : (hdrParts.length ? '' : fallbackSummary);
 
   // ── Table rows ─────────────────────────────────────────────────────────────
   let toolRows = '';
@@ -393,7 +398,7 @@ export function generateHTML(input) {
     '',
     shareToolLines,
     '',
-    hdrSub,
+    shareSummary,
     '',
     'Generated with stackpulse',
     'github.com/KrishnaSathvik/stackpulse',
@@ -428,10 +433,10 @@ export function generateHTML(input) {
   + '<meta name="viewport" content="width=device-width,initial-scale=1"/>\n'
   + '<title>' + title + '</title>\n'
   + '<meta property="og:title" content="' + title + '"/>\n'
-  + '<meta property="og:description" content="' + hdrSub + ' \u00b7 Generated with stackpulse"/>\n'
+  + '<meta property="og:description" content="' + shareSummary + ' \u00b7 Generated with stackpulse"/>\n'
   + '<meta name="twitter:card" content="summary_large_image"/>\n'
   + '<meta name="twitter:title" content="' + title + '"/>\n'
-  + '<meta name="twitter:description" content="' + hdrSub + '"/>\n'
+  + '<meta name="twitter:description" content="' + shareSummary + '"/>\n'
   + '<link rel="preconnect" href="https://fonts.googleapis.com"/>\n'
   + '<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet"/>\n'
   + '<style>\n'
@@ -452,15 +457,16 @@ export function generateHTML(input) {
   + '.s-icon{font-size:13px;color:' + t.accent + ';margin-bottom:5px}\n'
   + '.s-val{font-family:' + t.displayFont + ';font-size:22px;font-weight:700;color:' + t.text + ';letter-spacing:-.5px;line-height:1}\n'
   + '.s-lbl{font-size:10px;font-weight:600;color:' + t.textMuted + ';text-transform:uppercase;letter-spacing:.1em;margin-top:5px}\n'
-  + '.body{display:flex;min-height:200px}\n'
-  + '.donut-panel{width:196px;flex-shrink:0;border-right:1px solid ' + t.border + ';padding:22px 18px;display:flex;flex-direction:column;gap:14px}\n'
-  + '.dp-title{font-size:10px;font-weight:700;color:' + t.accent + ';text-transform:uppercase;letter-spacing:.12em;padding-bottom:10px;border-bottom:1px solid ' + t.border + '}\n'
-  + '.dp-chart{display:flex;justify-content:center}\n'
-  + '.dp-legend{display:flex;flex-direction:column;gap:7px}\n'
-  + '.leg-item{display:flex;align-items:center;gap:7px}\n'
-  + '.leg-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}\n'
-  + '.leg-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10.5px;color:' + t.text + '}\n'
-  + '.leg-pct{font-weight:700;font-size:10.5px;flex-shrink:0}\n'
+  + '.body{display:flex;flex-direction:column;min-height:200px}\n'
+  + '.donut-panel{display:flex;align-items:center;gap:32px;padding:22px 32px;border-bottom:1px solid ' + t.border + '}\n'
+  + '.dp-chart{flex:none;display:flex;justify-content:center}\n'
+  + '.dp-copy{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:14px}\n'
+  + '.dp-title{font-size:11px;font-weight:700;color:' + t.accent + ';text-transform:uppercase;letter-spacing:.14em}\n'
+  + '.dp-legend{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px 24px;align-content:center}\n'
+  + '.leg-item{display:flex;align-items:center;gap:8px;min-width:0}\n'
+  + '.leg-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}\n'
+  + '.leg-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13.5px;font-weight:500;color:' + t.text + '}\n'
+  + '.leg-pct{font-weight:700;font-size:13.5px;font-variant-numeric:tabular-nums}\n'
   + '.tbl-panel{flex:1;min-width:0}\n'
   + 'table{width:100%;border-collapse:collapse}\n'
   + 'thead tr{border-bottom:2px solid ' + t.border + ';background:' + t.surfaceAlt + '}\n'
@@ -522,6 +528,7 @@ export function generateHTML(input) {
   + '.ft-actions{display:flex;align-items:center;gap:8px}\n'
   + '.ft-btn{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:7px;font-size:10px;font-weight:600;letter-spacing:.04em;cursor:pointer;text-decoration:none;border:1px solid ' + t.borderAccent + ';background:' + t.surfaceAlt + ';color:' + t.textMuted + ';font-family:' + t.font + ';transition:all .15s ease;outline:none}\n'
   + '.ft-btn:hover{border-color:' + t.accent + ';color:' + t.accent + '}\n'
+  + '@media (max-width:720px){body{padding:16px 10px}.hdr{padding:20px 18px 16px}.stats{flex-wrap:wrap}.stat{flex:1 1 46%;min-width:120px}.donut-panel{flex-direction:column;align-items:flex-start;gap:16px;padding:18px 16px}.dp-legend{grid-template-columns:1fr 1fr;gap:10px 16px}.tbl-panel{overflow-x:auto}.hdr-title{font-size:22px}}\n'
   + '@media print{body{background:' + t.bg + ' !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}.ft-actions{display:none !important}.card{box-shadow:none !important;width:100% !important;max-width:none !important}@page{margin:0;size:auto}}\n'
   + '</style>\n'
   + '</head>\n'
@@ -530,7 +537,7 @@ export function generateHTML(input) {
   + '  <div class="hdr">\n'
   + '    <div>\n'
   + '      <div class="hdr-title">' + title + '</div>\n'
-  + '      <div class="hdr-sub">' + hdrSub + '</div>\n'
+  + (hdrSub ? '      <div class="hdr-sub">' + hdrSub + '</div>\n' : '')
   + '    </div>\n'
   + '    <div class="hdr-right">\n'
   + '      <div class="badge">' + timeframe + '</div>\n'
@@ -540,16 +547,18 @@ export function generateHTML(input) {
   + '  <div class="stats">' + statCards + '</div>\n'
   + '  <div class="body">\n'
   + '    <div class="donut-panel">\n'
-  + '      <div class="dp-title">' + (primary ? primary.label : 'Breakdown') + '</div>\n'
   + '      <div class="dp-chart">\n'
-  + '        <svg width="140" height="140" viewBox="0 0 140 140">\n'
+  + '        <svg width="168" height="168" viewBox="0 0 140 140">\n'
   + (donutSegs || '<circle cx="70" cy="70" r="56" fill="none" stroke="' + t.border + '" stroke-width="18"/>')
   + '\n          <circle cx="70" cy="70" r="30" fill="' + t.surface + '"/>\n'
-  + '          <text x="70" y="63" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9" fill="' + t.textMuted + '" font-weight="600" letter-spacing="1">TOTAL</text>\n'
-  + '          <text x="70" y="80" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="14" fill="' + t.text + '" font-weight="700">' + fmtVal(primary ? totals[primary.key] : null, primary) + '</text>\n'
+  + '          <text x="70" y="64" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="8" fill="' + t.textMuted + '" font-weight="600" letter-spacing="1">TOTAL</text>\n'
+  + '          <text x="70" y="80" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="13" fill="' + t.text + '" font-weight="700">' + fmtVal(primary ? totals[primary.key] : null, primary) + '</text>\n'
   + '        </svg>\n'
   + '      </div>\n'
-  + '      <div class="dp-legend">' + donutLegend + '</div>\n'
+  + '      <div class="dp-copy">\n'
+  + '        <div class="dp-title">' + (primary ? primary.label : 'Breakdown') + '</div>\n'
+  + '        <div class="dp-legend">' + donutLegend + '</div>\n'
+  + '      </div>\n'
   + '    </div>\n'
   + '    <div class="tbl-panel">\n'
   + '      <table>\n'

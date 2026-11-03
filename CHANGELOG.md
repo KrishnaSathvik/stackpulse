@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.3.1 — 2026-11-03
+
+### Report layout
+- The title no longer repeats the sessions, tokens, and cost already shown in the totals.
+- The sessions chart sits beside its legend, and the tool table uses the full width of the report.
+
 ## 3.3.0 — 2026-11-03
 
 Correctness release. No CLI flags, config keys or themes removed.

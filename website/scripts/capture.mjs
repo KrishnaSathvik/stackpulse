@@ -45,9 +45,7 @@ for (const theme of THEMES) {
     await z.take(await z.box('.stats'), `stats-${theme}`);
     await z.take(await z.box('.tbl-panel'), `table-${theme}`);
     await z.take(await z.box('.heatmap-section'), `heatmap-${theme}`);
-    const panel = await z.box('.donut-panel'), chart = await z.box('.dp-chart'), legend = await z.box('.dp-legend');
-    const top = chart.y - 6, bottom = legend.y + legend.height + 16;                       // donut + legend, no panel label
-    await z.take({ x: panel.x, y: top, width: panel.width, height: bottom - top }, `donut-${theme}`);
+    await z.take(await z.box('.donut-panel'), `donut-${theme}`);
     await z.page.close();
   }
   console.log('captured', theme);

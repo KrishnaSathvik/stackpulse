@@ -1,70 +1,70 @@
 {
-"card-dark": [
-1800,
-2690
-],
-"card-light": [
-1800,
-2690
-],
-"donut-dark": [
-588,
-822
-],
-"donut-light": [
-588,
-822
-],
-"heatmap-dark": [
-2694,
-1578
-],
-"heatmap-light": [
-2694,
-1578
-],
-"stats-dark": [
-2694,
-345
-],
-"stats-light": [
-2694,
-345
-],
-"table-dark": [
-2106,
-1677
-],
-"table-light": [
-2106,
-1677
-],
-"theme-arctic": [
-1800,
-1280
-],
-"theme-cosmic": [
-1800,
-1280
-],
-"theme-dark": [
-1800,
-1280
-],
-"theme-forge": [
-1800,
-1280
-],
-"theme-light": [
-1800,
-1280
-],
-"theme-neon": [
-1800,
-1280
-],
-"theme-verdant": [
-1800,
-1280
-]
+  "card-dark": [
+    1800,
+    2976
+  ],
+  "card-light": [
+    1800,
+    2976
+  ],
+  "donut-dark": [
+    2694,
+    639
+  ],
+  "donut-light": [
+    2694,
+    639
+  ],
+  "heatmap-dark": [
+    2694,
+    1578
+  ],
+  "heatmap-light": [
+    2694,
+    1578
+  ],
+  "stats-dark": [
+    2694,
+    345
+  ],
+  "stats-light": [
+    2694,
+    345
+  ],
+  "table-dark": [
+    2694,
+    1488
+  ],
+  "table-light": [
+    2694,
+    1488
+  ],
+  "theme-arctic": [
+    1800,
+    1280
+  ],
+  "theme-cosmic": [
+    1800,
+    1280
+  ],
+  "theme-dark": [
+    1800,
+    1280
+  ],
+  "theme-forge": [
+    1800,
+    1280
+  ],
+  "theme-light": [
+    1800,
+    1280
+  ],
+  "theme-neon": [
+    1800,
+    1280
+  ],
+  "theme-verdant": [
+    1800,
+    1280
+  ]
 }

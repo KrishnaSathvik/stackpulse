@@ -5,41 +5,26 @@ import { CellField, CommandCopy, Icon, Kicker, Logo, Shot, Terminal, shot, useZo
 // ── Header ──────────────────────────────────────────────────────────────────
 // `home` prefixes the section links: '' on the homepage, '/' on other pages.
 export function Header({ theme, onToggleTheme, home = '', current }) {
-  const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
     onScroll(); window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e) => e.key === 'Escape' && setOpen(false);
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open]);
   const next = theme === 'dark' ? 'light' : 'dark';
-  const links = NAV.map(n => ({ ...n, href: n.href.startsWith('#') ? home + n.href : n.href }));
   return (
     <header className={`header${scrolled ? ' is-scrolled' : ''}`}>
       <div className="container header__inner">
         <a className="brand" href={home || '#top'} aria-label="StackPulse home"><Logo /> StackPulse</a>
         <nav className="nav" aria-label="Main">
-          {links.map(n => <a key={n.href} href={n.href} aria-current={current === n.label ? 'page' : undefined}>{n.label}</a>)}
+          {NAV.map(n => <a key={n.href} href={n.href} aria-current={current === n.label ? 'page' : undefined}>{n.label}</a>)}
         </nav>
         <div className="header__actions">
           <button type="button" className="icon-btn theme-toggle" onClick={onToggleTheme} aria-label={`Switch to ${next} theme`} title={`Switch to ${next} theme`}>
             <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={18} />
           </button>
-          <button type="button" className="icon-btn menu-btn" onClick={() => setOpen(o => !o)}
-            aria-expanded={open} aria-controls="mobile-nav" aria-label={open ? 'Close menu' : 'Open menu'}>
-            <Icon name={open ? 'close' : 'menu'} size={18} />
-          </button>
         </div>
       </div>
-      <nav id="mobile-nav" className="mobile-nav" hidden={!open} aria-label="Main">
-        {links.map(n => <a key={n.href} href={n.href} onClick={() => setOpen(false)}>{n.label}</a>)}
-      </nav>
     </header>
   );
 }

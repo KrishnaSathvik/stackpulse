@@ -22,11 +22,8 @@ export const COMMAND = 'npx stackpulse';
 export const NPM_URL = 'https://www.npmjs.com/package/stackpulse';
 export const GITHUB_URL = 'https://github.com/KrishnaSathvik/stackpulse';
 
-// Header links. On the docs page the section links point back to the homepage.
+// Header links. The landing page already shows the sections, so the header only links to docs.
 export const NAV = [
-  { label: 'Features', href: '#features' },
-  { label: 'Screenshots', href: '#screenshots' },
-  { label: 'Tools', href: '#tools' },
   { label: 'Docs', href: '/docs/' },
 ];
 

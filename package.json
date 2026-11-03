@@ -1,6 +1,6 @@
 {
   "name": "stackpulse",
-  "version": "3.3.0",
+  "version": "3.3.1",
   "description": "Generate beautiful shareable cards for your AI coding tool usage — Claude Code, Codex, Cursor, Gemini CLI, Aider, and 8 more",
   "main": "index.js",
   "type": "module",
@@ -16,6 +16,10 @@
     "README.md",
     "LICENSE",
     "CHANGELOG.md",
+    "assets/card-dark.png",
+    "website/public/logo-mark.png",
+    "website/src/assets/tools/",
+    "website/src/assets/shots/theme-*.webp",
     "!src/collectors/sharded.js"
   ],
   "scripts": {
