@@ -26,7 +26,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/card-dark.png" alt="A StackPulse report: totals, a sessions chart, per-tool and per-model rows, and a year of activity." width="840" />
+  <img src="assets/cli-dark.png" alt="StackPulse in a terminal: a scan summary with one row per tool showing sessions, tokens and estimated cost, then a menu to generate the report, customize it or view details." width="560" />
 </p>
 
 ## Quick start
@@ -42,13 +42,33 @@ npm install -g stackpulse
 stackpulse
 ```
 
-StackPulse scans this machine for supported tools, asks which ones to include, and writes `stackpulse.html`. Open that file in a browser.
+StackPulse scans this machine, shows one row per tool it found, and asks what to do next:
+
+- **Generate report**: press Enter to write `stackpulse.html` with every tool it found.
+- **Generate and open in browser**: the same, then opens the file.
+- **Customize report**: choose tools, metrics, theme, title, handle and file name, and enter numbers for tools it could not read.
+- **View details**: token types and every model with its exact ID, for each tool.
+
+To skip the menu, run `npx stackpulse --yes`. Add `--open` to open the report, or `--details` to print the details too.
+
+## The report
+
+<p align="center">
+  <img src="assets/card-dark.png" alt="A StackPulse report: totals, a sessions chart, a row per tool and per model with tokens and estimated cost, token composition, and a year of activity." width="840" />
+</p>
+
+One standalone HTML file with totals, each tool's share, a row per tool and model, and a year of daily activity. Seven themes.
+
+**Token composition** splits tokens into cache reads, cache writes, output and uncached input. Cache reads are conversation context the model reads again on each turn. They are usually most of the total, and they are not newly written text.
+
+**Cost labels:** `est.` is an estimate at API list prices, not a bill. `rec.` is a cost the tool recorded. `—` means the tool does not record that number.
 
 ## Features
 
 - Finds supported AI coding tools and reads the usage they already store locally.
 - Reports sessions and day-by-day activity.
 - Breaks out tokens and models when a tool records them.
+- Splits tokens into cache reads, cache writes, output and uncached input.
 - Shows recorded cost, or an API list-price estimate, when a price is known. An unknown cost stays unavailable. It is not shown as $0.
 - Draws an activity heatmap for each tool.
 - Writes one HTML report you can keep or share.
@@ -77,13 +97,17 @@ Each tool contributes what it actually records. A dash in the report means that 
 
 Cursor does not store tokens or cost locally. If Antigravity has no conversation history, StackPulse reports its session count only.
 
-Estimated cost is an API list price, not a subscription bill. Roo Code and Kilo Code show the cost those tools recorded. You can add a tool by hand during the wizard. Leave cost blank if you do not know it, or enter `0` when the cost really is zero.
+Estimated cost is an API list price, not a subscription bill. Roo Code and Kilo Code show the cost those tools recorded. For Codex, usage is priced at the service tier each session recorded. Usage with no recorded tier is priced at the standard rate. If your Codex config sets another tier, such as priority, StackPulse also shows what the estimate would be at that tier. You can add a tool by hand under **Customize report**. Leave any number blank if you do not know it, or enter `0` when the cost really is zero.
 
 ## How it works
 
-1. **Run** `npx stackpulse`. It looks for the 13 tools above and reads their local usage.
-2. **Choose** the tools, the metrics, a title, a theme, and a file name.
-3. **Open** the HTML report. Use **Save as PDF** for the browser print dialog, or **Share on X** for a prefilled post.
+1. **Run** `npx stackpulse`. It looks for the 13 tools above, reads their local usage, and prints a summary table.
+2. **Generate** the report with defaults, or **customize** the tools, metrics, theme, title, handle, and file name. **View details** shows token types (input, output, cache reads and writes) and per-model usage.
+3. **Open** the HTML report, or choose **Generate and open in browser**. Use **Save as PDF** for the browser print dialog, or **Share on X** for a prefilled post.
+
+If something looks wrong, the summary says so: a tool marked *incomplete* could only be partly read, and the reason is printed under the table and in the report.
+
+Outside an interactive terminal (a pipe or a script), or with `--yes`, StackPulse writes the default report without asking. The terminal output respects `NO_COLOR` and reads on light and dark backgrounds.
 
 ## Configuration
 
@@ -125,6 +149,9 @@ tools:
 | `--title <text>` | Report title |
 | `--timeframe <text>` | Label such as `2026 — All Time` |
 | `--username <handle>` | Handle shown on the report |
+| `-y, --yes` | Write the default report without prompts |
+| `--open` | Open the report in your default browser when it is written |
+| `--details` | Also print token types, models, and detection results after the scan |
 | `-V, --version` | Print the version |
 | `-h, --help` | Print help |
 
@@ -132,7 +159,7 @@ You can also put `lines_written`, `commits`, `hours_saved`, `files_edited`, or `
 
 ## Report themes
 
-Pick one in the wizard, or pass `--theme`.
+Pick one under **Customize report**, or pass `--theme`.
 
 | Dark | Light | Cosmic | Forge |
 | --- | --- | --- | --- |

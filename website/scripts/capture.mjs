@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // Screenshots the real StackPulse HTML cards produced by drive-cli.py and writes
 // web-ready crops into src/assets/shots/:
-//   card-<light|dark>      full card (hero)                           2× density
-//   stats/table/donut/heatmap-<light|dark>  report close-ups          3× density
-//   theme-<theme>          top of the card in each of the 7 themes    2× density
+//   card-<theme>      the full report above its footer (themes section)     2× density
+//   theme-<theme>     top of the report, for the theme thumbnails           2× density
+//   tokens-<l|d>      token composition close-up (docs)                     3× density
+//   tokens-m-<l|d>    the same at phone width (400px)                       3× density
 // Cards are cropped above their footer (the footer holds the X share button,
 // which the website does not advertise).
 //
@@ -21,9 +22,9 @@ mkdirSync(outDir, { recursive: true });
 const browser = await puppeteer.launch({ executablePath: process.env.CHROME, headless: true });
 const webp = (png, name) => execFileSync('cwebp', ['-quiet', '-q', '84', '-m', '6', png, '-o', join(outDir, `${name}.webp`)]);
 
-async function open(theme, scale) {
+async function open(theme, scale, width = 1280) {
   const page = await browser.newPage();
-  await page.setViewport({ width: 1280, height: 1000, deviceScaleFactor: scale });
+  await page.setViewport({ width, height: 1000, deviceScaleFactor: scale, isMobile: width < 720 });
   await page.goto(`file://${join(cardsDir, theme, 'card.html')}`, { waitUntil: 'networkidle0' });
   await page.evaluate(() => document.fonts.ready);
   await new Promise(r => setTimeout(r, 2500));   // entry animations
@@ -37,16 +38,20 @@ for (const theme of THEMES) {
   const { page, box, take } = await open(theme, 2);
   const card = await box('.card'), footer = await box('.footer');
   await take({ x: card.x, y: card.y, width: card.width, height: Math.min(640, footer.y - card.y) }, `theme-${theme}`);
-  if (theme === 'dark' || theme === 'light') await take({ ...card, height: footer.y - card.y }, `card-${theme}`);
+  await take({ ...card, height: footer.y - card.y }, `card-${theme}`);   // the full report, every theme
   await page.close();
 
   if (theme === 'dark' || theme === 'light') {
     const z = await open(theme, 3);
-    await z.take(await z.box('.stats'), `stats-${theme}`);
-    await z.take(await z.box('.tbl-panel'), `table-${theme}`);
-    await z.take(await z.box('.heatmap-section'), `heatmap-${theme}`);
-    await z.take(await z.box('.donut-panel'), `donut-${theme}`);
+    await z.take(await z.box('.tok-section'), `tokens-${theme}`);
     await z.page.close();
+  }
+  // Phone capture: token composition total, bar and legend at phone width.
+  if (theme === 'dark' || theme === 'light') {
+    const m = await open(theme, 3, 400);
+    const tok = await m.box('.tok-section'), legend = await m.box('.tok-legend');
+    await m.take({ x: tok.x, y: tok.y, width: tok.width, height: legend.y + legend.height + 10 - tok.y }, `tokens-m-${theme}`);
+    await m.page.close();
   }
   console.log('captured', theme);
 }

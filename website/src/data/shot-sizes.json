@@ -1,43 +1,31 @@
 {
+  "card-arctic": [
+    1800,
+    3650
+  ],
+  "card-cosmic": [
+    1800,
+    3650
+  ],
   "card-dark": [
     1800,
-    2976
+    3650
+  ],
+  "card-forge": [
+    1800,
+    3650
   ],
   "card-light": [
     1800,
-    2976
+    3650
   ],
-  "donut-dark": [
-    2694,
-    639
+  "card-neon": [
+    1800,
+    3650
   ],
-  "donut-light": [
-    2694,
-    639
-  ],
-  "heatmap-dark": [
-    2694,
-    1578
-  ],
-  "heatmap-light": [
-    2694,
-    1578
-  ],
-  "stats-dark": [
-    2694,
-    345
-  ],
-  "stats-light": [
-    2694,
-    345
-  ],
-  "table-dark": [
-    2694,
-    1488
-  ],
-  "table-light": [
-    2694,
-    1488
+  "card-verdant": [
+    1800,
+    3650
   ],
   "theme-arctic": [
     1800,
@@ -66,5 +54,21 @@
   "theme-verdant": [
     1800,
     1280
+  ],
+  "tokens-dark": [
+    2694,
+    951
+  ],
+  "tokens-light": [
+    2694,
+    951
+  ],
+  "tokens-m-dark": [
+    1134,
+    570
+  ],
+  "tokens-m-light": [
+    1134,
+    570
   ]
 }

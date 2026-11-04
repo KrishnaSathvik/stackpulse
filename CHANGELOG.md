@@ -1,5 +1,92 @@
 # Changelog
 
+## 3.4.0 — 2026-11-04
+
+A new terminal experience, a clearer report, and two Codex accuracy fixes. Config files and existing
+flags are unchanged.
+
+### Report
+- **Token composition**: a new section splits tokens into cache reads, cache writes, output and uncached
+  input, with a row per tool. A tool's tokens that it does not split by type are shown as *Other*, so the
+  parts always add up to the total. The numbers are the same ones the terminal details view shows.
+- Model rows show the exact model ID under its display name, and long IDs wrap instead of widening the
+  table.
+- Each tool's cost says where it came from: `est.`, `rec.` or `mixed`.
+- Keyboard focus is visible on the buttons, the scrollable tables can be scrolled with the keyboard, and
+  the charts have text descriptions for screen readers.
+- On phones, the activity grid scrolls inside its panel instead of widening the page. Sections no longer
+  split across pages when printed.
+- The StackPulse logo appears in the browser tab and the report footer, and prints in the PDF. It is
+  embedded in the file, so the report still needs nothing else to open.
+- Printed or saved as PDF, tool totals no longer wrap onto two lines, and the activity grid fits the page
+  width.
+- Costs show to the cent with thousands separators (`$1,234.56`), the same figure the terminal prints.
+  Larger amounts were rounded or shortened before (`$1,235`, `$12.4k`).
+
+### Codex accuracy
+- **Cost used today's service tier for past usage.** When a Codex session did not record its service
+  tier, the collector priced it at the `service_tier` in your current `~/.codex/config.toml`. With
+  `priority` set there, older usage was charged at twice the standard rate. Tiers that sessions recorded
+  are still used. Usage with no recorded tier is now priced at the standard rate. When your config sets
+  another tier, the scan, the details view and the report also show the estimate at that tier, so the
+  assumption is visible.
+- **Forked subagent sessions were missing.** A forked Codex session that Codex wrote in one pass after
+  compaction was dropped entirely, with its own usage. Those sessions are now counted. History that the
+  fork replays from its parent session is excluded, so nothing is counted twice. A fork whose parent
+  session is missing is not counted and is reported instead.
+- To read those forks, the collector is given private temporary copies that hold usage numbers only, never
+  the conversation. They are removed when the scan ends, fails or is interrupted, and any left by a crash
+  are removed at the next scan.
+- Codex auto-review usage has no published price; the collector counts and prices it as `gpt-5.6-luna`.
+  The details view and the report now say so wherever a `gpt-5.6-luna` row appears.
+
+### Package
+- Only the images the README shows, and their attribution, ship from `website/`. Unused logos no longer
+  ship. The README now opens with the terminal, then shows the report.
+
+### Readable on any terminal
+- Ordinary text uses the terminal's own foreground colour. Tool names, model IDs, counts and help
+  text were forced white or dim and nearly vanished on light backgrounds.
+- Accents are limited to colours that read on light and dark themes, and every state also has a
+  symbol (✓ ! ✖ —), so nothing depends on colour alone. `NO_COLOR` is respected.
+- The terminal is no longer cleared on start, so your scrollback is kept.
+
+### Shorter flow
+- A compact heading replaces the ASCII-art logo.
+- The scan shows a spinner, then one table row per tool with sessions, tokens and cost, plus
+  "N tools detected · M not found" instead of a line for every missing tool.
+- One menu: **Generate report**, **Generate and open in browser**, **Customize report**,
+  **View details**, **Exit**. Accepting the defaults takes one keypress.
+- **Customize report** asks for tools, metrics and report details in one pass, with no
+  "Press Enter to continue" confirmations between steps. Detected tools are pre-selected.
+- In manual entry, a blank field means unknown for every number, not only cost. An explicit `0`
+  stays zero.
+- Ctrl+C exits cleanly: "Cancelled. No report was written."
+
+### Details on request
+- **View details** (or `--details`) shows each tool's token composition (input, output, cache
+  read, cache write) and every model with tokens and cost, with full model IDs. It also shows
+  detection results for all 13 tools.
+- Cost labels: `est.` (API list price, not a bill), `rec.` (recorded by the tool), and `≥` for
+  a lower bound. Missing data shows `—`, never 0.
+- Incomplete sources, collector warnings and read failures stay visible under the table.
+
+### Completion
+- The long X share URL is no longer printed; the report's own Share button is unchanged.
+- The success screen shows the file, theme, included tools and any coverage warning, plus how
+  to open the file. `--open` (or the menu option) opens it in your default browser without a
+  shell. Success is reported only when the system opener succeeds.
+
+### Layout
+- Output adapts to the terminal width. Tables fall back to a stacked list on narrow terminals,
+  and paths and model IDs are never cut.
+- Tools are listed in a fixed order. Previously they followed whichever scan finished first.
+
+### Scripting
+- Non-interactive runs (pipes, CI) and `--yes` write the default report without prompting.
+- Unwritable output paths fail with a clear message instead of a stack trace.
+- `figlet` is no longer a dependency.
+
 ## 3.3.1 — 2026-11-03
 
 ### Report layout

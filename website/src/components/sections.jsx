@@ -102,97 +102,29 @@ const STORY = [
     text: 'Totals across all your tools, how many tools reported each number, and each tool’s share of your sessions.' },
   { key: 'models', title: 'Understand models and usage',
     text: 'A row for every tool and every model under it: sessions, tokens, estimated cost, lines and commits.' },
+  { key: 'tokens', title: 'See what your tokens are made of',
+    text: 'Cache reads, cache writes, output and uncached input, so a large token total is easy to read.' },
   { key: 'activity', title: 'Explore activity over time',
     text: 'A year of daily activity, one block per tool, so you can see when each one actually gets used.' },
 ];
 
-function StoryVisual({ step, theme, zoom }) {
-  if (step === 'tools') return (
-    <div className="sv sv--tools">
-      <div className="sv__shot">
-        <Shot name={`stats-${theme}`} alt="Report totals: 1,086 sessions, 476.3M tokens, $487.55 estimated cost, 1,958 lines written and 46 AI commits, each with how many tools reported it." />
-      </div>
-      <div className="sv__stats" style={{ '--shot': `url("${shot(`stats-${theme}`).src}")` }} aria-hidden="true">
-        {[0, 1, 2, 3, 4].map(i => <span key={i} style={{ '--i': i }} />)}
-      </div>
-      <div className="sv__row">
-        <div className="sv__donut"><Shot name={`donut-${theme}`} alt="Report sessions donut: 1,086 sessions split across Cursor, Aider, Claude Code, Codex and Gemini CLI." /></div>
-        <Terminal part="scan" from={11} title="Detected on this machine" command=""
-          label="The five tools StackPulse detected, with their sessions, tokens and estimated cost." />
-      </div>
-    </div>
-  );
-  const name = step === 'models' ? `table-${theme}` : `heatmap-${theme}`;
-  const alt = step === 'models'
-    ? 'Report table: Cursor and Aider rows, then Claude Code, Codex and Gemini CLI with a row per model showing tokens and estimated cost.'
-    : 'Report activity heatmap: a year of daily activity for Cursor, Aider, Claude Code, Codex and Gemini CLI.';
-  return (
-    <div className={`sv sv--${step}`}>
-      <button type="button" className="sv__zoom" onClick={() => zoom({ name, alt })} aria-label="Enlarge screenshot">
-        <Shot name={name} alt={alt} />
-        <span className="sv__zoomhint"><Icon name="expand" size={14} /> Enlarge</span>
-      </button>
-    </div>
-  );
-}
-
-export function Story({ theme }) {
-  const [step, setStep] = useState('tools');
-  const [zoom, dialog] = useZoom();
-  const refs = useRef({});
-  const onKey = (e, i) => {
-    const d = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key];
-    if (!d) return;
-    e.preventDefault();
-    const next = STORY[(i + d + STORY.length) % STORY.length].key;
-    setStep(next); refs.current[next]?.focus();
-  };
-  const active = STORY.findIndex(s => s.key === step);
+// What the report shows, as a plain list. The full report itself is in the themes section.
+export function Story() {
   return (
     <section className="section" id="screenshots" aria-labelledby="story-title">
       <div className="container">
         <SplitHead index="01" kicker="Product" id="story-title" title="From your terminal to a clear report.">
           Run one command. StackPulse scans your tools, prints a summary, and writes a report you can explore.
         </SplitHead>
-        <div className="story reveal">
-          <div className="story__steps" role="tablist" aria-label="What the report shows" aria-orientation="vertical">
-            {STORY.map((s, i) => (
-              <button key={s.key} type="button" role="tab" id={`tab-${s.key}`} aria-selected={step === s.key} aria-controls="story-stage"
-                tabIndex={step === s.key ? 0 : -1} ref={el => { refs.current[s.key] = el; }}
-                className="story__step" onClick={() => setStep(s.key)} onKeyDown={e => onKey(e, i)}>
-                <span className="story__num">{String(i + 1).padStart(2, '0')}</span>
-                <span className="story__body"><strong>{s.title}</strong><span>{s.text}</span></span>
-              </button>
-            ))}
-          </div>
-          <div className="story__stage" id="story-stage" role="tabpanel" aria-labelledby={`tab-${step}`}>
-            <Frame title={`stackpulse.html — ${STORY[active].title.toLowerCase()}`}>
-              <div className="story__view" key={step}><StoryVisual step={step} theme={theme} zoom={zoom} /></div>
-            </Frame>
-          </div>
-        </div>
-      </div>
-      {dialog}
-    </section>
-  );
-}
-
-// ── 3. Activity heatmap ─────────────────────────────────────────────────────
-export function Activity({ theme }) {
-  return (
-    <section className="section" id="activity" aria-labelledby="activity-title">
-      <div className="container">
-        <SplitHead index="02" kicker="Activity" id="activity-title" title="A year of daily activity, one row per tool.">
-          Each block is a day. Brighter blocks are the days that tool was used more.
-        </SplitHead>
-        <div className="activity reveal">
-          <Frame title="stackpulse.html — activity" className="activity__frame">
-            <div className="activity__shot">
-              <Shot name={`heatmap-${theme}`}
-                alt="Report activity heatmap: 294 active days across a year, with one row each for Cursor, Aider, Claude Code, Codex and Gemini CLI." />
-            </div>
-          </Frame>
-        </div>
+        <ol className="story-list reveal">
+          {STORY.map((s, i) => (
+            <li key={s.key} className="story-list__item">
+              <span className="story__num">{String(i + 1).padStart(2, '0')}</span>
+              <strong>{s.title}</strong>
+              <span>{s.text}</span>
+            </li>
+          ))}
+        </ol>
       </div>
     </section>
   );
@@ -203,17 +135,17 @@ export function Features() {
   return (
     <section className="section" id="features" aria-labelledby="features-title">
       <div className="container">
-        <SplitHead index="03" kicker="Features" id="features-title" title="Built around what your tools actually record.">
+        <SplitHead index="02" kicker="Features" id="features-title" title="Built around what your tools actually record.">
           No estimates dressed up as data. StackPulse reports what each tool keeps, and says when a number covers only some of them.
         </SplitHead>
         <div className="feats">
           <article className="feat feat--discover reveal">
             <div className="feat__text">
               <h3>Automatic tool discovery</h3>
-              <p>One scan checks for all 13 supported tools and shows what each one has recorded.</p>
+              <p>One scan checks all 13 supported tools and shows one row for each tool it found. Press Enter to write the report, or customize it first.</p>
             </div>
-            <Terminal part="scan" from={3} title="Scanning for AI tools" command=""
-              label="A StackPulse scan: eight tools not installed, five found with their sessions, tokens and estimated cost." />
+            <Terminal part="menu" title="npx stackpulse" command=""
+              label="A StackPulse scan: five tools found, each with sessions, tokens and estimated cost, then the menu: Generate report, Generate and open in browser, Customize report, View details, Exit." />
           </article>
           <article className="feat feat--metrics reveal" style={{ '--i': 1 }}>
             <div className="feat__text">
@@ -234,11 +166,11 @@ export function Features() {
           </article>
           <article className="feat feat--models reveal">
             <div className="feat__text">
-              <h3>Model and activity breakdowns</h3>
-              <p>Usage split by model wherever the tool records it.</p>
+              <h3>Token and model details</h3>
+              <p>View details shows each tool’s token types and every model with its exact ID, without crowding the summary.</p>
             </div>
-            <Terminal part="summary" from={3} title="Summary" command=""
-              label="StackPulse summary: Claude Code, Codex and Gemini CLI, each with tokens and estimated cost per model." />
+            <Terminal part="details" title="View details — Claude Code" command=""
+              label="StackPulse details for Claude Code: tokens by type, mostly cache reads, then each model with its exact ID, tokens and estimated cost." />
           </article>
           <article className="feat feat--local reveal" style={{ '--i': 1 }}>
             <div className="feat__text">
@@ -274,7 +206,7 @@ export function Tools() {
       <div className="container">
         <ul className="wall reveal">
           <li className="wall__lead">
-            <Kicker index="04">Integrations</Kicker>
+            <Kicker index="03">Integrations</Kicker>
             <h2 id="tools-title"><span className="wall__num">13</span> AI coding tools, one report.</h2>
             <p>Read straight from the files each tool keeps on your machine.</p>
           </li>
@@ -293,7 +225,22 @@ export function Tools() {
 // ── 5. Report themes ────────────────────────────────────────────────────────
 export function Themes() {
   const [selected, setSelected] = useState('cosmic');
+  const [open, setOpen] = useState(false);     // the full report is collapsed until asked for
+  const [zoom, dialog] = useZoom();
   const refs = useRef({});
+  // Phones: the thumbnails scroll sideways. A label and an edge fade say so until the last
+  // one is in view; the selected theme scrolls into view.
+  const bar = useRef(null);
+  const [strip, setStrip] = useState({ end: true });
+  const measure = () => {
+    const n = bar.current; if (!n) return;
+    setStrip({ end: n.scrollLeft + n.clientWidth >= n.scrollWidth - 4 });
+  };
+  useEffect(() => { measure(); window.addEventListener('resize', measure); return () => window.removeEventListener('resize', measure); }, []);
+  useEffect(() => {
+    const n = bar.current, card = refs.current[selected];
+    if (n && card && n.scrollWidth > n.clientWidth) n.scrollTo({ left: Math.max(0, card.offsetLeft - n.offsetLeft - 20), behavior: 'smooth' });
+  }, [selected]);
   const onKey = (e, i) => {
     const d = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key];
     if (!d) return;
@@ -305,11 +252,15 @@ export function Themes() {
   return (
     <section className="section" id="reports" aria-labelledby="themes-title">
       <div className="container">
-        <SplitHead index="05" kicker="Report themes" id="themes-title" title="Seven looks for your report.">
+        <SplitHead index="04" kicker="Report themes" id="themes-title" title="Seven looks for your report.">
           Themes style the HTML report StackPulse writes. Pick one in the CLI, or pass <code>--theme</code>.
         </SplitHead>
         <div className="themes reveal">
-          <div className="theme-bar" role="radiogroup" aria-label="Report theme">
+          <div className={`theme-strip${strip.end ? ' is-end' : ''}`}>
+          <p className="theme-strip__hint" aria-hidden="true">
+            <span>Swipe to see all {REPORT_THEMES.length} themes <Icon name="arrow" size={13} /></span>
+          </p>
+          <div className="theme-bar" role="radiogroup" aria-label="Report theme" ref={bar} onScroll={measure}>
             {REPORT_THEMES.map((t, i) => {
               const on = t.key === selected;
               return (
@@ -326,12 +277,26 @@ export function Themes() {
               );
             })}
           </div>
+          </div>
           <div className="themes__stage">
+            <button type="button" className="story__full themes__toggle" aria-expanded={open} aria-controls="themes-report"
+              onClick={() => setOpen(o => !o)}>
+              <Icon name={open ? 'close' : 'expand'} size={15} /> {open ? 'Hide the report' : `Show the full report in ${current.name}`}
+            </button>
+            {open && <div id="themes-report" className="themes__panel">
             <Frame title={`stackpulse.html · ${current.name} theme`}>
-              <div className="crop crop--theme">
-                <Shot key={selected} name={`theme-${selected}`} alt={`The StackPulse report in the ${current.name} theme.`} />
-              </div>
+              {/* The whole report in the selected theme. Tap or click to view it larger. */}
+              <button type="button" className="themes__report" onClick={() => zoom({ name: `card-${selected}`, tall: true,
+                alt: `The full StackPulse report in the ${current.name} theme.` })} aria-label={`Enlarge the report in the ${current.name} theme`}>
+                <Shot key={selected} name={`card-${selected}`} alt={`The full StackPulse report in the ${current.name} theme: totals, sessions by tool, a row per tool and model, token composition and a year of activity.`} />
+              </button>
             </Frame>
+            <p className="themes__hint" aria-hidden="true">Tap the report to view it larger.</p>
+            <button type="button" className="story__full themes__toggle" aria-expanded={open} aria-controls="themes-report"
+              onClick={() => { setOpen(false); document.getElementById('themes-title')?.scrollIntoView({ block: 'start' }); }}>
+              <Icon name="close" size={15} /> Hide the report
+            </button>
+            </div>}
           </div>
           <ul className="themes__facts">
             <li><Icon name="html" size={16} /> One self-contained HTML file</li>
@@ -340,6 +305,7 @@ export function Themes() {
           </ul>
         </div>
       </div>
+      {dialog}
     </section>
   );
 }

@@ -1,10 +1,8 @@
 #!/usr/bin/env node
 process.removeAllListeners('warning');
 
-import { checkbox, confirm, input, select } from '@inquirer/prompts';
-import chalk from 'chalk';
+import { checkbox, confirm, input, select, Separator } from '@inquirer/prompts';
 import ora from 'ora';
-import figlet from 'figlet';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -12,6 +10,13 @@ import yaml from 'js-yaml';
 import { Command } from 'commander';
 import { generateHTML } from './generator.js';
 import { parseEnteredCost } from './src/core/cost.js';
+import {
+  AI_TOOLS, METRICS, THEMES, THEME_KEYS, toolMeta, defaultTitle, defaultTimeframe,
+  smartDefaultMetrics, snapshotScan, mergeData, metricsNeedingInput, applyMetricTotal, buildCardData,
+} from './src/cli/card.js';
+import { ui, sym, para, contentWidth } from './src/cli/term.js';
+import * as screens from './src/cli/screens.js';
+import { openFile, openHint } from './src/cli/open.js';
 import { detect as detectClaudeCode,  parse as parseClaudeCode  } from './parsers/claude-code.js';
 import { detect as detectCodex,       parse as parseCodex       } from './parsers/codex.js';
 import { detect as detectOpenCode,    parse as parseOpenCode    } from './parsers/opencode.js';
@@ -26,49 +31,11 @@ import { detect as detectRooCode,     parse as parseRooCode     } from './parser
 import { detect as detectKiloCode,    parse as parseKiloCode    } from './parsers/kilocode.js';
 import { detect as detectAider,       parse as parseAider       } from './parsers/aider.js';
 
+export { AI_TOOLS, METRICS };
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PKG_VERSION = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf-8')).version;
 
-// ─── Tool registry ────────────────────────────────────────────────────────────
-export const AI_TOOLS = [
-  { key: 'claude_code', name: 'Claude Code',  icon: '\u25c6', color: '#D97706', source: 'ccusage',          hasTokens: true,  hasCost: true  },
-  { key: 'codex',       name: 'Codex',         icon: '\u2b21', color: '#10A37F', source: 'ccusage/codex',    hasTokens: true,  hasCost: true  },
-  { key: 'opencode',    name: 'OpenCode',      icon: '\u25ce', color: '#6366F1', source: 'ccusage/opencode', hasTokens: true,  hasCost: true  },
-  { key: 'amp',         name: 'Amp',           icon: '\u25c8', color: '#EC4899', source: 'ccusage/amp',      hasTokens: true,  hasCost: true  },
-  { key: 'pi',          name: 'Pi Agent',      icon: '\u25c9', color: '#8B5CF6', source: 'ccusage/pi',       hasTokens: true,  hasCost: true  },
-  { key: 'gemini',      name: 'Gemini CLI',    icon: '\u25d1', color: '#4285F4', source: 'jsonl',            hasTokens: true,  hasCost: false },
-  { key: 'qwen',        name: 'Qwen Code',     icon: '\u25d0', color: '#7C3AED', source: 'jsonl',            hasTokens: true,  hasCost: true  },
-  { key: 'kimi',        name: 'Kimi CLI',      icon: '\u25d2', color: '#0EA5E9', source: 'jsonl',            hasTokens: true,  hasCost: true  },
-  { key: 'cursor',      name: 'Cursor',        icon: '\u2b22', color: '#6E56CF', source: 'sqlite',           hasTokens: false, hasCost: false },
-  { key: 'antigravity', name: 'Antigravity',   icon: '\u25c7', color: '#1A73E8', source: 'sqlite',           hasTokens: false, hasCost: false },
-  { key: 'roocode',     name: 'Roo Code',      icon: '\u25c1', color: '#00BCD4', source: 'sqlite',           hasTokens: false, hasCost: false },
-  { key: 'kilocode',    name: 'Kilo Code',     icon: '\u25b7', color: '#FF6B35', source: 'sqlite',           hasTokens: false, hasCost: false },
-  { key: 'aider',       name: 'Aider',         icon: '\u25c8', color: '#16A34A', source: 'git',              hasTokens: false, hasCost: false },
-];
-
-export const METRICS = [
-  { key: 'sessions',      label: 'Sessions',      unit: '',    icon: '\u26a1', hint: 'number of sessions / conversations' },
-  { key: 'tokens_used',   label: 'Tokens Used',   unit: 'K',   icon: '\u25c8', hint: 'enter in K units (e.g. 1500 = 1.5M)' },
-  { key: 'cost_usd',      label: 'Cost',          unit: '$',   icon: '\u25ca', hint: 'USD, e.g. 14.50' },
-  { key: 'lines_written', label: 'Lines Written', unit: 'loc', icon: '\u2726', hint: 'lines of code written by AI' },
-  { key: 'commits',       label: 'AI Commits',    unit: '',    icon: '\u25c9', hint: 'git commits attributed to AI' },
-  { key: 'hours_saved',   label: 'Hours Saved',   unit: 'h',   icon: '\u25f7', hint: 'estimated hours saved' },
-  { key: 'files_edited',  label: 'Files Edited',  unit: '',    icon: '\u25ce', hint: 'number of files edited by AI' },
-  { key: 'bugs_fixed',    label: 'Bugs Fixed',    unit: '',    icon: '\u25c6', hint: 'bugs resolved with AI help' },
-];
-
-const THEME_CHOICES = [
-  { name: '\ud83c\udf11  Dark      \u2014 ' + chalk.dim('Terminal noir'),                        value: 'dark'    },
-  { name: '\u2600\ufe0f   Light     \u2014 ' + chalk.white('Clean minimal'),                      value: 'light'   },
-  { name: '\ud83c\udf0c  Cosmic    \u2014 ' + chalk.blue('Deep space'),                           value: 'cosmic'  },
-  { name: '\ud83d\udd25  Forge     \u2014 ' + chalk.hex('#F97316')('Amber heat'),                 value: 'forge'   },
-  { name: '\ud83c\udf0a  Arctic    \u2014 ' + chalk.hex('#2563EB')('Ice blue'),                   value: 'arctic'  },
-  { name: '\ud83c\udf3f  Verdant   \u2014 ' + chalk.hex('#22C55E')('Forest green'),               value: 'verdant' },
-  { name: '\ud83d\udc97  Neon      \u2014 ' + chalk.hex('#E879F9')('Pink synthwave'),             value: 'neon'    },
-];
-const THEME_KEYS = THEME_CHOICES.map(c => c.value);
-
-// ─── Parser + detector maps ───────────────────────────────────────────────────
 const PARSERS = {
   claude_code: parseClaudeCode, codex: parseCodex, opencode: parseOpenCode,
   amp: parseAmp, pi: parsePi, gemini: parseGemini, qwen: parseQwen, kimi: parseKimi,
@@ -82,152 +49,279 @@ const DETECTORS = {
   roocode: detectRooCode, kilocode: detectKiloCode, aider: detectAider,
 };
 
-// ─── UI helpers ───────────────────────────────────────────────────────────────
-const W = 60;
-function rule(c = '\u2500') { return chalk.dim(c.repeat(W)); }
+// ─── Output helpers ───────────────────────────────────────────────────────────
+const max = () => contentWidth();
+const print = (lines = ['']) => { for (const l of [].concat(lines)) console.log(l); };
+const gap = () => console.log('');
 
-function stepHeader(n, total, title, hint) {
-  console.log('');
-  console.log(chalk.bgCyan.black(` STEP ${n}/${total} `) + '  ' + chalk.white.bold(title));
-  if (hint) console.log(chalk.dim('         ' + hint));
-  console.log(rule() + '\n');
-}
-
-// Sub-cent costs must not print as "$0.00", which reads as free.
-function fmtUsd(v) {
-  return v > 0 && v < 0.005 ? '<$0.01' : `$${Number(v).toFixed(2)}`;
-}
-
-function fmtTokens(k) {
-  // k is in thousands of tokens: 1e6 K = 1B ("5.36B", not "5363.7M").
-  return k >= 1e6 ? `${(k / 1e6).toFixed(2)}B` : k >= 1000 ? `${(k / 1000).toFixed(1)}M` : `${k}K`;
-}
-
-function buildStatParts(metrics) {
-  const parts = [];
-  if (metrics.sessions)      parts.push(chalk.white(`${metrics.sessions} sessions`));
-  if (metrics.tokens_used)   parts.push(chalk.cyan(fmtTokens(metrics.tokens_used) + ' tokens'));
-  if (metrics.cost_usd)      parts.push(chalk.yellow(fmtUsd(metrics.cost_usd)));
-  if (metrics.commits)       parts.push(chalk.green(`${metrics.commits} commits`));
-  if (metrics.lines_written) parts.push(chalk.dim(`${Number(metrics.lines_written).toLocaleString()} lines`));
-  return parts.join(chalk.dim('  \u00b7  ')) || chalk.dim('\u2014');
-}
-
-// ─── Live scanner ─────────────────────────────────────────────────────────────
-async function scanMachineWithFeedback() {
-  console.log(chalk.bold.cyan('\n  Scanning for AI tools\u2026\n'));
-  console.log(chalk.dim('  ' + '\u2500'.repeat(W - 4)));
-
-  const results = {};
-  const WIDTH = 16;
-
-  await Promise.allSettled(
-    Object.entries(PARSERS).map(async ([key, parseFn]) => {
-      const tool = AI_TOOLS.find(t => t.key === key);
-      const name = (tool?.name || key).padEnd(WIDTH);
-
-      let detected = false;
-      try { detected = DETECTORS[key](); } catch {}
-
-      if (!detected) {
-        console.log(`  ${chalk.dim('\u25a1')}  ${chalk.dim(name)} ${chalk.dim('not installed')}`);
-        return;
-      }
-
-      process.stdout.write(`  ${chalk.cyan('\u25cc')}  ${chalk.cyan(name)} ${chalk.dim('reading data\u2026')}\r`);
-
-      try {
-        const data = await parseFn();
-        if (data && (data.sessions || data.tokens_used || data.commits)) {
-          results[key] = data;
-          const parts = [
-            data.sessions    ? `${data.sessions} sessions`            : null,
-            data.tokens_used ? fmtTokens(data.tokens_used) + ' tokens' : null,
-            data.cost_usd    ? fmtUsd(data.cost_usd)                  : null,
-            data.commits     ? `${data.commits} commits`              : null,
-          ].filter(Boolean).join('  \u00b7  ');
-          const incomplete = data.coverage?.status === 'partial' ? chalk.yellow('  (incomplete)') : '';
-          console.log(`  ${chalk.green('\u25cf')}  ${chalk.white.bold(name)} ${chalk.green(parts)}${incomplete}                    `);
-          for (const d of data.diagnostics || []) {
-            console.log(`     ${chalk.yellow('\u26a0')}  ${chalk.yellow(d.message)}`);
-          }
-        } else {
-          console.log(`  ${chalk.yellow('\u25cb')}  ${chalk.dim(name)} ${chalk.dim('installed \u2014 no data yet')}    `);
-        }
-      } catch (err) {
-        const why = err?.message ? ` (${String(err.message).split('\n')[0].slice(0, 80)})` : '';
-        console.log(`  ${chalk.red('\u00d7')}  ${chalk.dim(name)} ${chalk.dim('could not read data' + why)}    `);
-      }
-    })
-  );
-
-  console.log(chalk.dim('  ' + '\u2500'.repeat(W - 4)) + '\n');
-  return results;
-}
-
-function detectInstalled() {
-  const found = [];
-  for (const [key, fn] of Object.entries(DETECTORS)) {
-    try { if (fn()) found.push(key); } catch {}
-  }
-  return found;
-}
-
-function smartDefaultMetrics(scanned, manualData = {}) {
-  const all  = { ...scanned, ...manualData };
-  const has  = key => Object.values(all).some(d => d?.[key] > 0);
-  const picks = ['sessions'];
-  if (has('tokens_used'))   picks.push('tokens_used');
-  if (has('cost_usd'))      picks.push('cost_usd');
-  if (has('lines_written')) picks.push('lines_written');
-  if (has('commits'))       picks.push('commits');
-  return picks;
-}
-
-function buildShareLink(cardData) {
-  // Include both parent headers and plain tools (not model sub-rows)
-  const allTools = cardData.tools.filter(t => !t.isModelRow);
-  const toolLines = allTools.slice(0, 5).map(t => {
-    const parts = [];
-    if (t.metrics.sessions)    parts.push(Number(t.metrics.sessions).toLocaleString() + ' sessions');
-    if (t.metrics.tokens_used) parts.push(fmtTokens(t.metrics.tokens_used) + ' tokens');
-    if (t.metrics.cost_usd)    parts.push(fmtUsd(t.metrics.cost_usd));
-    return (t.icon || '\u25c6') + ' ' + t.name + (parts.length ? ': ' + parts.join(' \u00b7 ') : '');
-  }).join('\n');
-
-  const totalSessions = allTools.reduce((s, t2) => s + (t2.metrics.sessions || 0), 0);
-  const totalTokens   = allTools.reduce((s, t2) => s + (t2.metrics.tokens_used || 0), 0);
-  const totalCost     = allTools.reduce((s, t2) => s + (t2.metrics.cost_usd || 0), 0);
-  const summaryParts  = [];
-  if (totalSessions) summaryParts.push(totalSessions.toLocaleString() + ' sessions');
-  if (totalTokens)   summaryParts.push(fmtTokens(totalTokens) + ' tokens');
-  if (totalCost)     summaryParts.push(fmtUsd(totalCost));
-
-  const text = [
-    cardData.title || 'My AI Coding Stack',
-    '',
-    toolLines,
-    '',
-    summaryParts.join(' \u00b7 '),
-    '',
-    'Generated with stackpulse',
-    'github.com/KrishnaSathvik/stackpulse',
-  ].join('\n');
-  return `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
-}
-
-function printBanner() {
-  process.stdout.write('\x1Bc'); // reset terminal cleanly
-  console.log(chalk.cyan(figlet.textSync('stackpulse', { font: 'Slant' })));
-  console.log(chalk.dim('  stackpulse v' + PKG_VERSION + '  \u00b7  Shareable card for your AI coding stack'));
-  console.log(chalk.dim('  ' + AI_TOOLS.length + ' tools supported  \u00b7  github.com/KrishnaSathvik/stackpulse\n'));
-}
+/**
+ * Prompt theme: Inquirer's defaults use a dark-blue "?" and dim gray help text,
+ * which disappear on light or dark backgrounds respectively. Keep help in the
+ * terminal's own foreground; the cursor (❯) and checkbox shapes carry state.
+ */
+const promptTheme = {
+  prefix: { idle: ui.accent('?'), done: ui.ok(sym.ok) },
+  style: {
+    help: (t) => t,
+    defaultAnswer: (t) => `(${t})`,
+    description: (t) => t,
+    disabled: (t) => t,
+    keysHelpTip: (keys) => keys.map(([key, action]) => `${key} ${action}`).join(` ${sym.bullet} `),
+  },
+};
+const ask = {
+  select:   (o) => select({ theme: promptTheme, ...o }),
+  checkbox: (o) => checkbox({ theme: promptTheme, ...o }),
+  input:    (o) => input({ theme: promptTheme, ...o }),
+  confirm:  (o) => confirm({ theme: promptTheme, ...o }),
+};
 
 function fail(message) {
-  console.error(chalk.red('\n  ✖ ' + message + '\n'));
+  // Not wrapped: scripts match on error text, and the terminal soft-wraps it anyway.
+  console.error(`\n  ${ui.error(sym.error)} ${message}\n`);
   process.exit(1);
 }
 
+const firstLine = (s) => String(s ?? '').split('\n').map(l => l.trim()).find(Boolean) || '';
+
+// ─── Scan ─────────────────────────────────────────────────────────────────────
+async function scanMachine() {
+  const results = {}, failed = {}, empty = [], missing = [], detected = [];
+  for (const t of AI_TOOLS) {
+    let found = false;
+    try { found = !!DETECTORS[t.key](); } catch {}
+    (found ? detected : missing).push(t.key);
+  }
+
+  // ora loops forever clearing lines when a TTY reports 0 columns (some CI/IDE terminals).
+  // Dumb terminals and CI cannot redraw a line either; they get one plain status line.
+  const spinnerOk = !!process.stderr.isTTY && (process.stderr.columns || 0) > 0
+    && process.env.TERM !== 'dumb' && !process.env.CI;
+  const label = (done) => `Scanning ${AI_TOOLS.length} supported tools` +
+    (detected.length ? ` ${sym.bullet} reading ${done} of ${detected.length} found` : '');
+  const spinner = ora({ text: label(0), isEnabled: spinnerOk, discardStdin: false });
+  if (spinnerOk) spinner.start(); else print(`  Scanning ${AI_TOOLS.length} supported tools…`);
+
+  let done = 0;
+  await Promise.allSettled(detected.map(async (key) => {
+    try {
+      const data = await PARSERS[key]();
+      if (data && (data.sessions || data.tokens_used || data.commits)) results[key] = data;
+      else empty.push(key);
+    } catch (err) {
+      failed[key] = firstLine(err?.message) || 'unknown error';
+    } finally {
+      spinner.text = label(++done);
+    }
+  }));
+  spinner.stop();
+  return { results, failed, empty, missing };
+}
+
+// ─── Default report ───────────────────────────────────────────────────────────
+function defaultDetails(opts) {
+  return {
+    title: opts.title || defaultTitle(),
+    timeframe: opts.timeframe || defaultTimeframe(),
+    username: opts.username || '',
+    theme: opts.theme || 'dark',
+  };
+}
+
+/** The report a user gets by accepting every default: all tools with data, every metric they have. */
+function defaultReport(scan, opts) {
+  const scanned = { ...scan.results };
+  const selectedKeys = screens.orderTools(Object.keys(scanned));
+  return {
+    cardData: buildCardData({
+      scanned, scannedSnapshot: snapshotScan(scanned), manualData: {},
+      selectedKeys, selectedMetrics: smartDefaultMetrics(scanned), details: defaultDetails(opts),
+    }),
+    outputBase: opts.output || 'stackpulse',
+  };
+}
+
+// ─── Customize ────────────────────────────────────────────────────────────────
+const numberOrBlank = (v) => v.trim() === '' || /^\d+(\.\d+)?$/.test(v.trim().replace(/,/g, '')) || 'Enter a number, or leave it blank if unknown.';
+const toNumber = (raw, float = false) => {
+  const s = String(raw).trim().replace(/,/g, '');
+  if (s === '') return null;
+  return float ? Number(s) : parseInt(s, 10);
+};
+
+async function customize(scan, opts) {
+  const scanned = { ...scan.results };
+  const scannedSnapshot = snapshotScan(scanned);
+  const withData = screens.orderTools(Object.keys(scanned));
+  const installed = screens.orderTools([...scan.empty, ...Object.keys(scan.failed)]);
+  const others = AI_TOOLS.filter(t => !withData.includes(t.key) && !installed.includes(t.key));
+
+  // ── Tools ──
+  const choices = [
+    ...withData.map(k => ({ name: toolMeta(k).name, value: k, checked: true, description: 'Data found on this machine' })),
+    ...installed.map(k => ({ name: `${toolMeta(k).name} (enter numbers)`, value: k, checked: false,
+      description: scan.failed[k] ? `Could not be read: ${scan.failed[k]}` : 'Installed, but no usage was found' })),
+    ...(others.length ? [new Separator(`${sym.dash} Not detected: add and enter numbers yourself`)] : []),
+    ...others.map(t => ({ name: t.name, value: t.key, checked: false, description: 'Not found on this machine' })),
+  ];
+  gap();
+  const selectedKeys = await ask.checkbox({
+    message: 'Tools to include',
+    choices, pageSize: Math.min(choices.length, 16), loop: false,
+    validate: v => v.length > 0 || 'Select at least one tool.',
+  });
+
+  // ── Numbers for tools without local data ──
+  const manualData = {};
+  for (const key of selectedKeys.filter(k => !scanned[k])) {
+    const tool = toolMeta(key);
+    gap();
+    print(para(`${ui.strong(tool.name)}: enter what you know. Leave a field blank if unknown.`, max(), { indent: '' }));
+    const entry = {};
+    const sessions = toNumber(await ask.input({ message: 'Sessions', validate: numberOrBlank }));
+    if (sessions != null) entry.sessions = sessions;
+    if (tool.hasTokens) {
+      const tokens = toNumber(await ask.input({ message: 'Tokens used, in thousands (1500 = 1.5M)', validate: numberOrBlank }));
+      if (tokens != null) entry.tokens_used = tokens;
+    }
+    if (tool.hasCost) {
+      const cost = parseEnteredCost(String(await ask.input({ message: 'Cost in USD (0 is free; blank is unknown)', validate: numberOrBlank })).replace(/,/g, ''));
+      if (cost != null) entry.cost_usd = cost;
+    }
+    if (key === 'aider') {
+      const commits = toNumber(await ask.input({ message: 'Git commits', validate: numberOrBlank }));
+      if (commits != null) entry.commits = commits;
+    }
+    if (Object.keys(entry).length) manualData[key] = entry;
+  }
+
+  // ── Metrics ──
+  const allData = mergeData(scanned, manualData);
+  const defaults = smartDefaultMetrics(scanned, manualData);
+  gap();
+  const selectedMetrics = await ask.checkbox({
+    message: 'Metrics to show',
+    choices: METRICS.map(m => {
+      const hasData = Object.values(allData).some(d => d?.[m.key] > 0);
+      return { name: hasData ? m.label : `${m.label} (enter a total)`, value: m.key, checked: defaults.includes(m.key),
+        description: hasData ? 'Available from your data' : `No tool reports this; you can enter a total (${m.hint})` };
+    }),
+    pageSize: METRICS.length, loop: false,
+    validate: v => v.length > 0 || 'Pick at least one metric.',
+  });
+
+  const needInput = metricsNeedingInput(selectedMetrics, allData);
+  if (needInput.length) {
+    gap();
+    print(para('Totals for metrics no tool reports. Leave blank if unknown.', max(), { indent: '' }));
+    for (const mk of needInput) {
+      const m = METRICS.find(x => x.key === mk);
+      const raw = await ask.input({ message: `${m.label} (${m.hint})`, validate: numberOrBlank });
+      const val = mk === 'cost_usd' ? parseEnteredCost(String(raw).replace(/,/g, '')) : toNumber(raw);
+      applyMetricTotal({ scanned, manualData, allData, selectedKeys }, mk, val);
+    }
+  }
+
+  // ── Report details ──
+  const base = defaultDetails(opts);
+  gap();
+  const theme = await ask.select({
+    message: 'Theme', default: base.theme, pageSize: THEMES.length, loop: false,
+    choices: THEMES.map(t => ({ name: `${t.label.padEnd(8)} ${t.hint}`, short: t.label, value: t.value })),
+  });
+  const title     = await ask.input({ message: 'Title', default: base.title });
+  const timeframe = await ask.input({ message: 'Timeframe label', default: base.timeframe });
+  const username  = await ask.input({ message: 'Handle (optional, e.g. @you)', default: base.username });
+  const outputBase = (await ask.input({
+    message: 'Output file name', default: opts.output || 'stackpulse',
+    validate: v => v.trim() !== '' || 'Enter a file name.',
+  })).trim().replace(/\.(html?)$/i, '');
+  const open = opts.open || await ask.confirm({ message: 'Open the report in your browser when it is ready?', default: false });
+
+  return {
+    cardData: buildCardData({ scanned, scannedSnapshot, manualData, selectedKeys, selectedMetrics,
+      details: { title, timeframe, username, theme } }),
+    outputBase, open,
+  };
+}
+
+// ─── Details view ─────────────────────────────────────────────────────────────
+function printAllDetails(scan) {
+  for (const k of screens.orderTools(Object.keys(scan.results))) { gap(); print(screens.toolDetails(k, scan.results[k], { max: max() })); }
+  gap(); print(screens.detectionDetails(scan, { max: max() }));
+}
+
+async function detailsMenu(scan) {
+  const keys = screens.orderTools(Object.keys(scan.results));
+  for (;;) {
+    gap();
+    const pick = await ask.select({
+      message: 'Show details for',
+      loop: false, pageSize: keys.length + 3,
+      choices: [
+        ...keys.map(k => {
+          const n = scan.results[k].modelBreakdown?.length || 0;
+          return { name: toolMeta(k).name, value: k, description: n ? `Token types and ${n} ${n === 1 ? 'model' : 'models'}` : 'Sessions only' };
+        }),
+        { name: `Detection results (all ${AI_TOOLS.length} tools)`, value: '#detect' },
+        { name: 'Back', value: '#back' },
+      ],
+    });
+    if (pick === '#back') return;
+    gap();
+    print(pick === '#detect' ? screens.detectionDetails(scan, { max: max() }) : screens.toolDetails(pick, scan.results[pick], { max: max() }));
+  }
+}
+
+// ─── Main flow ────────────────────────────────────────────────────────────────
+async function runInteractive(scan, opts) {
+  const hasData = Object.keys(scan.results).length > 0;
+  const file = `${opts.output || 'stackpulse'}.html`;
+  for (;;) {
+    gap();
+    const action = await ask.select({
+      message: 'What would you like to do?',
+      loop: false,
+      choices: [
+        ...(hasData ? [
+          { name: 'Generate report', value: 'generate', description: `${defaultDetails(opts).theme} theme, all detected tools ${sym.bullet} saves ${file}` },
+          { name: 'Generate and open in browser', value: 'generate-open', description: `Same report, then opens ${file}` },
+        ] : []),
+        { name: 'Customize report', value: 'customize', description: 'Choose tools, metrics, theme, title, handle and file name' },
+        ...(hasData ? [{ name: 'View details', value: 'details', description: 'Token types, models and detection results' }] : []),
+        { name: 'Exit', value: 'exit', description: 'Leave without writing a report' },
+      ],
+    });
+    if (action === 'exit') { gap(); print('  No report was written.'); gap(); return null; }
+    if (action === 'details') { await detailsMenu(scan); continue; }
+    if (action === 'customize') return customize(scan, opts);
+    return { ...defaultReport(scan, opts), open: opts.open || action === 'generate-open' };
+  }
+}
+
+async function writeReport({ cardData, outputBase, open }) {
+  const htmlPath = path.resolve(`${outputBase}.html`);
+  try {
+    fs.writeFileSync(htmlPath, generateHTML(cardData), 'utf-8');
+  } catch (err) {
+    fail(`Could not write ${htmlPath}: ${err.code === 'ENOENT' ? 'the folder does not exist' : err.code === 'EACCES' ? 'permission denied' : firstLine(err.message)}`);
+  }
+  const rel = path.relative(process.cwd(), htmlPath);
+  const displayPath = rel && !rel.startsWith('..') && !path.isAbsolute(rel) ? rel : htmlPath;
+
+  gap();
+  print(screens.completion({ htmlPath, displayPath, theme: cardData.theme, cardData, openHint: open ? null : openHint(displayPath) }, { max: max() }));
+  if (open) {
+    const r = await openFile(htmlPath);
+    gap();
+    print(r.ok
+      ? para(`${ui.ok(sym.ok)} Sent to your default browser.`, max())
+      : para(`${ui.warn(sym.warn)} Could not open the report (${r.reason}). Open ${displayPath} yourself.`, max(), { hang: '  ' }));
+  }
+  gap();
+}
+
+// ─── Config file mode ─────────────────────────────────────────────────────────
 function loadConfig(filePath) {
   const kind = path.extname(filePath).toLowerCase().startsWith('.y') ? 'YAML' : 'JSON';
   let content, cfg;
@@ -247,27 +341,28 @@ function runFromConfig(configPath, opts) {
   const keys = Object.keys(cfg.tools || {});
   const mets = cfg.metrics || ['sessions', 'tokens_used', 'cost_usd'];
   const toolData = keys.map(key => {
-    const meta = AI_TOOLS.find(t => t.key === key) || { name: key, key, color: '#64748B', icon: '\u25c6' };
+    const meta = toolMeta(key);
     const src  = cfg.tools[key];
     return { ...meta, name: src.name || meta.name, color: src.color || meta.color,
       metrics: mets.reduce((a, mk) => { a[mk] = src[mk] ?? null; return a; }, {}) };
   });
   return {
     cardData: {
-      title:     cfg.title     || 'My AI Coding Stack',
-      timeframe: cfg.timeframe || `${new Date().getFullYear()} \u2014 All Time`,
+      title:     cfg.title     || defaultTitle(),
+      timeframe: cfg.timeframe || defaultTimeframe(),
       username:  cfg.username  || '',
       theme:     cfg.theme     || 'dark',
       tools:     toolData,
       metrics:   mets.map(k => METRICS.find(m => m.key === k)).filter(Boolean),
     },
     outputBase: opts.output || 'stackpulse',
+    open: !!opts.open,
   };
 }
 
 function scaffoldConfig(outPath) {
   const tmpl = {
-    title: 'My AI Coding Stack', timeframe: `${new Date().getFullYear()} \u2014 All Time`,
+    title: defaultTitle(), timeframe: defaultTimeframe(),
     username: 'yourhandle', theme: 'dark',
     metrics: ['sessions', 'tokens_used', 'cost_usd', 'commits'],
     tools: {
@@ -279,365 +374,32 @@ function scaffoldConfig(outPath) {
     },
   };
   const ext = path.extname(outPath).toLowerCase();
-  fs.writeFileSync(outPath, ext.startsWith('.y') ? yaml.dump(tmpl, { indent: 2 }) : JSON.stringify(tmpl, null, 2), 'utf-8');
-  console.log(chalk.green(`\n  \u2726 Scaffold created \u2192 ${outPath}`));
-  console.log(chalk.dim(`  Edit values then run: stackpulse --config ${outPath}\n`));
-}
-
-async function writeOutputs({ cardData, outputBase }) {
-  const htmlPath = path.resolve(`${outputBase}.html`);
-
-  // ora loops forever clearing lines when a TTY reports 0 columns (some CI/IDE terminals)
-  const spinnerOk = !!process.stdout.isTTY && (process.stdout.columns || 0) > 0;
-  const spinner = ora({ text: 'Rendering card\u2026', color: 'cyan', isEnabled: spinnerOk }).start();
-  fs.writeFileSync(htmlPath, generateHTML(cardData), 'utf-8');
-  spinner.succeed(chalk.green('Card ready!'));
-
-  // Result summary
-  console.log('');
-  console.log(chalk.bold.white('\u2500'.repeat(W)));
-  console.log(chalk.bold('  \ud83d\udcca  Your AI Card'));
-  console.log(chalk.dim('\u2500'.repeat(W)));
-
-  const parentTools = cardData.tools.filter(t => !t.isModelRow);
-  for (const tool of parentTools) {
-    if (tool.isParentHeader) {
-      console.log(`\n  ${tool.icon}  ${chalk.bold.white(tool.name)}`);
-      const models = cardData.tools.filter(t => t.isModelRow && t.parentName === tool.name);
-      models.forEach((m, i) => {
-        const branch = i === models.length - 1 ? '\u2570' : '\u251c';
-        console.log(`     ${chalk.dim(branch + '\u2500')} ${chalk.white(m.name.padEnd(16))} ${buildStatParts(m.metrics)}`);
-      });
-    } else {
-      console.log(`  ${tool.icon}  ${chalk.white.bold(tool.name.padEnd(16))} ${buildStatParts(tool.metrics)}`);
-    }
+  try {
+    fs.writeFileSync(outPath, ext.startsWith('.y') ? yaml.dump(tmpl, { indent: 2 }) : JSON.stringify(tmpl, null, 2), 'utf-8');
+  } catch (err) {
+    fail(`Could not write ${outPath}: ${firstLine(err.message)}`);
   }
-
-  const incomplete = parentTools.filter(t => t.coverage?.status === 'partial');
-  if (incomplete.length) {
-    console.log('');
-    console.log(chalk.yellow(`  \u26a0  Totals are incomplete \u2014 only partly read: ${incomplete.map(t => t.name).join(', ')}.`));
-    console.log(chalk.yellow('     These figures are lower bounds; see the notes on the card.'));
-  }
-
-  console.log('');
-  console.log(chalk.dim('\u2500'.repeat(W)));
-  console.log(chalk.green('  HTML  ') + chalk.underline(htmlPath));
-  console.log(chalk.dim('\u2500'.repeat(W)));
-  console.log('');
-  console.log('  ' + chalk.bold('Share \u2192') + ' ' + chalk.blue.underline(buildShareLink(cardData)));
-  console.log('');
-}
-
-// ─── 3-STEP WIZARD ────────────────────────────────────────────────────────────
-async function runWizard(opts = {}) {
-
-  // ── Scan phase ────────────────────────────────────────────────────────────
-  const scanned     = await scanMachineWithFeedback();
-  const installed   = detectInstalled();
-  const scannedKeys = Object.keys(scanned);
-  const allFoundKeys = [...new Set([...scannedKeys, ...installed])];
-
-  // Snapshot original scanned data BEFORE any mutations (Steps 1-2 may mutate scanned).
-  // This preserves daily[] arrays for heatmap even if merges clobber them later.
-  const scannedSnapshot = {};
-  for (const [key, val] of Object.entries(scanned)) {
-    scannedSnapshot[key] = { ...val };
-    // Deep-copy arrays that heatmap needs
-    if (Array.isArray(val.daily)) scannedSnapshot[key].daily = [...val.daily];
-    if (Array.isArray(val.modelBreakdown)) scannedSnapshot[key].modelBreakdown = [...val.modelBreakdown];
-  }
-  // ══════════════════════════════════════════════════════════════════════════
-  //  STEP 1 — TOOLS
-  // ══════════════════════════════════════════════════════════════════════════
-  stepHeader(1, 3, 'Select Your AI Tools',
-    'Space = toggle  \u00b7  \u2191\u2193 = navigate  \u00b7  Enter = confirm');
-
-  // Show all detected/installed tools — user toggles which to include
-  let selectedKeys = [];
-  if (allFoundKeys.length > 0) {
-    selectedKeys = await checkbox({
-      message: 'Select tools to include on your card:',
-      choices: allFoundKeys.map(key => ({
-        name: (AI_TOOLS.find(t => t.key === key)?.name || key) +
-              (scanned[key]
-                ? chalk.green('  \u2713 data found')
-                : chalk.yellow('  \u25cb installed, no data')),
-        value:   key,
-        checked: !!scanned[key],  // pre-check tools with data
-      })),
-      pageSize: 20,
-      validate: v => v.length > 0 || 'Select at least one tool.',
-    });
-  }
-
-  // Add tools not on machine (optional second list)
-  const notFound = AI_TOOLS.filter(t => !allFoundKeys.includes(t.key));
-  if (notFound.length > 0) {
-    console.log('');
-    console.log(chalk.dim('  Other tools (not detected on this machine):'));
-    console.log(chalk.dim('  Space = toggle  \u00b7  Enter = done\n'));
-    const srcLabel = {
-      ccusage: 'full data', 'ccusage/codex': 'full data', 'ccusage/opencode': 'full data',
-      'ccusage/amp': 'full data', 'ccusage/pi': 'full data',
-      jsonl: 'tokens', sqlite: 'sessions', git: 'commits',
-    };
-    const extra = await checkbox({
-      message: 'Add any tools you use manually?',
-      choices: notFound.map(t => ({
-        name:    `${t.icon}  ${t.name.padEnd(16)} ${chalk.dim(srcLabel[t.source] || '')}`,
-        value:   t.key,
-        checked: false,
-      })),
-      pageSize: 15,
-    });
-    selectedKeys = [...selectedKeys, ...extra];
-  }
-
-  if (selectedKeys.length === 0) {
-    console.log(chalk.red('\n  No tools selected.\n'));
-    process.exit(0);
-  }
-
-  // Manual entry for tools without local data
-  const manualData = {};
-  const needManual = selectedKeys.filter(k => !scanned[k]);
-  if (needManual.length > 0) {
-    console.log(chalk.dim('\n  \u2500\u2500 Enter stats for tools without local data \u2500\u2500\n'));
-    for (const key of needManual) {
-      const tool = AI_TOOLS.find(t => t.key === key);
-      if (!tool) continue;
-      console.log(chalk.bold(`\n  ${tool.icon}  ${tool.name}`));
-      if (!(await confirm({ message: `  Enter ${tool.name} stats?`, default: true }))) continue;
-      const entry = { sessions: parseInt(await input({ message: '    Sessions:', default: '0' })) || 0 };
-      if (tool.hasTokens) entry.tokens_used = parseInt(await input({ message: '    Tokens used (K):', default: '0' })) || 0;
-      if (tool.hasCost) {
-        const cost = parseEnteredCost(await input({ message: '    Cost USD (blank if unknown):', default: '' }));
-        if (cost != null) entry.cost_usd = cost;
-      }
-      if (key === 'aider') entry.commits    = parseInt(await input({ message: '    Git commits:', default: '0' })) || 0;
-      manualData[key] = entry;
-    }
-  }
-
-  // ── Confirm before proceeding to Step 2 ──────────────────────────────────
-  console.log('');
-  const toolSummary = selectedKeys
-    .map(k => {
-      const meta = AI_TOOLS.find(t => t.key === k);
-      return chalk.cyan(meta?.name || k);
-    })
-    .join(chalk.dim(', '));
-  console.log(`  ${chalk.bold('Tools selected:')} ${toolSummary}`);
-  console.log('');
-  await confirm({
-    message: chalk.bold('Ready to choose metrics? \u2192 Press Enter to continue'),
-    default: true,
-  });
-
-  // ══════════════════════════════════════════════════════════════════════════
-  //  STEP 2 — METRICS
-  // ══════════════════════════════════════════════════════════════════════════
-  stepHeader(2, 3, 'Choose Metrics to Display',
-    'Space = toggle  \u00b7  \u2191\u2193 = navigate  \u00b7  Enter = confirm');
-
-  // Deep merge: manual entries patch scanned data, preserving daily[] and modelBreakdown[]
-  const allData = {};
-  for (const key of [...new Set([...Object.keys(scanned), ...Object.keys(manualData)])]) {
-    allData[key] = { ...(scanned[key] || {}), ...(manualData[key] || {}) };
-  }
-  const defaultMetrics = smartDefaultMetrics(scanned, manualData);
-
-  const selectedMetrics = await checkbox({
-    message: 'Which metrics to show on your card?',
-    choices: METRICS.map(m => {
-      const hasData = Object.values(allData).some(d => d?.[m.key] > 0);
-      return {
-        name:    `${m.icon}  ${m.label.padEnd(16)}` +
-                 (hasData ? chalk.green(' \u2713 has data') : chalk.dim(' \u2014 enter manually')),
-        value:   m.key,
-        checked: defaultMetrics.includes(m.key),
-      };
-    }),
-    pageSize: 10,
-    validate: v => v.length > 0 || 'Pick at least one metric.',
-  });
-
-  // For metrics with no auto-detected data, let the user enter totals manually
-  const metricsNeedingInput = selectedMetrics.filter(mk => {
-    // skip if any tool already has this data
-    return !Object.values(allData).some(d => d?.[mk] > 0);
-  });
-
-  if (metricsNeedingInput.length > 0) {
-    console.log('');
-    console.log(chalk.dim('  \u2500\u2500 Enter totals for metrics without auto-detected data \u2500\u2500'));
-    console.log(chalk.dim('  These will be shown as aggregate totals on your card.\n'));
-
-    for (const mk of metricsNeedingInput) {
-      const metaDef = METRICS.find(m => m.key === mk);
-      const hint    = metaDef?.hint ? chalk.dim(` (${metaDef.hint})`) : '';
-      const raw     = await input({
-        message: `  ${metaDef?.icon || ''} ${metaDef?.label || mk}${hint}:`,
-        default: mk === 'cost_usd' ? '' : '0',
-      });
-      const val = mk === 'cost_usd' ? parseEnteredCost(raw) : (parseInt(raw, 10) || 0);
-      if (val == null) continue;
-
-      // Spread the value evenly across selected tools that have sessions but 0 for this metric
-      // Or just store on first tool with sessions
-      const toolsWithSessions = selectedKeys.filter(k => (allData[k]?.sessions || 0) > 0);
-      if (toolsWithSessions.length > 0) {
-        const primaryKey = toolsWithSessions[0];
-        if (!manualData[primaryKey]) manualData[primaryKey] = {};
-        if (!scanned[primaryKey])    scanned[primaryKey]    = { ...allData[primaryKey] };
-        scanned[primaryKey][mk] = val;
-        if (mk === 'cost_usd') manualData[primaryKey].cost_usd = val;
-      } else if (selectedKeys.length > 0) {
-        const firstKey = selectedKeys[0];
-        if (!scanned[firstKey]) scanned[firstKey] = {};
-        if (!manualData[firstKey]) manualData[firstKey] = {};
-        scanned[firstKey][mk] = val;
-        if (mk === 'cost_usd') manualData[firstKey].cost_usd = val;
-      }
-    }
-  }
-
-  // Show summary of what will appear on the card
-  console.log('');
-  const metSummary = selectedMetrics
-    .map(k => {
-      const m = METRICS.find(x => x.key === k);
-      return chalk.cyan(m?.label || k);
-    })
-    .join(chalk.dim(', '));
-  console.log(`  ${chalk.bold('Metrics selected:')} ${metSummary}`);
-  console.log('');
-
-  // ── Confirm before proceeding to Step 3 ──────────────────────────────────
-  await confirm({
-    message: chalk.bold('Ready to customise card details? \u2192 Press Enter to continue'),
-    default: true,
-  });
-
-  // ══════════════════════════════════════════════════════════════════════════
-  //  STEP 3 — CARD DETAILS
-  // ══════════════════════════════════════════════════════════════════════════
-  stepHeader(3, 3, 'Card Details & Output',
-    'Customise title, theme, handle, and filename');
-
-  const year        = new Date().getFullYear();
-  const cardTitle   = await input({ message: 'Card title:', default: opts.title     || 'My AI Coding Stack' });
-  const timeframe   = await input({ message: 'Timeframe:',  default: opts.timeframe || `${year} \u2014 All Time` });
-  const username    = await input({ message: 'Your handle (e.g. @latentengineer_):', default: opts.username || '' });
-  console.log('');
-  const theme       = await select({ message: 'Visual theme:', choices: THEME_CHOICES, default: opts.theme || 'dark', pageSize: 10 });
-  console.log('');
-  const outputBase  = (await input({
-    message: 'Output filename (no extension):',
-    default: opts.output || 'stackpulse',
-  })).replace(/\.(html?)$/i, '');
-
-  // ── Generate ──────────────────────────────────────────────────────────────
-  console.log(chalk.green('\n  \u2714  All done \u2014 generating your card\u2026\n'));
-
-  // Build tool rows for the card
-  // Deep merge: manual entries patch scanned data, preserving daily[] and other parser fields
-  const finalAllData = { ...scanned };
-  for (const [key, manual] of Object.entries(manualData)) {
-    finalAllData[key] = { ...(scanned[key] || {}), ...manual };
-  }
-  const toolData       = [];
-  const wantsBreakdown = selectedMetrics.some(mk => mk === 'tokens_used' || mk === 'cost_usd');
-
-  for (const key of selectedKeys) {
-    const meta      = AI_TOOLS.find(t => t.key === key) || { name: key, key, color: '#64748B', icon: '\u25c6' };
-    const merged    = { ...(finalAllData[key] || {}) };
-    const breakdown = wantsBreakdown
-      ? (merged.modelBreakdown || []).filter(mb => (mb.tokens_used || 0) + (mb.cost_usd || 0) > 0)
-      : [];
-    // Cost provenance from the adapter; a manually entered cost replaces it.
-    const costInfo = manualData[key]?.cost_usd != null
-      ? { kind: 'manual', status: 'complete', unpricedModels: [] }
-      : (merged.cost || null);
-
-    if (breakdown.length > 1) {
-      toolData.push({
-        ...meta, isParentHeader: true, costInfo, coverage: merged.coverage || null,
-        metrics: selectedMetrics.reduce((a, mk) => { a[mk] = merged[mk] ?? null; return a; }, {}),
-      });
-      breakdown.forEach((mb, i) => toolData.push({
-        ...meta, name: mb.displayName, parentName: meta.name,
-        isModelRow: true, costInfo: mb.costStatus ? { status: mb.costStatus } : null, isLast: i === breakdown.length - 1,
-        metrics: selectedMetrics.reduce((a, mk) => {
-          a[mk] = mk === 'tokens_used' ? (mb.tokens_used ?? null)
-                : mk === 'cost_usd'    ? (mb.cost_usd    ?? null)
-                : null;
-          return a;
-        }, {}),
-      }));
-    } else {
-      toolData.push({
-        ...meta, costInfo, coverage: merged.coverage || null,
-        metrics: selectedMetrics.reduce((a, mk) => { a[mk] = merged[mk] ?? null; return a; }, {}),
-      });
-    }
-  }
-
-  // ── Merge daily data from all tools for heatmap
-  // Build per-tool heatmap entries (toolKey preserved for per-row coloring)
-  // Check both finalAllData AND original scanned — daily[] can get lost in merges
-  const heatmapData = [];
-  for (const key of selectedKeys) {
-    // Try finalAllData first, fall back to scanned, then to pristine snapshot
-    let toolResult = finalAllData[key];
-    let source = 'finalAllData';
-    if (!toolResult || !Array.isArray(toolResult.daily) || toolResult.daily.length === 0) {
-      if (scanned[key] && Array.isArray(scanned[key].daily) && scanned[key].daily.length > 0) {
-        toolResult = scanned[key];
-        source = 'scanned (fallback)';
-      } else if (scannedSnapshot[key] && Array.isArray(scannedSnapshot[key].daily) && scannedSnapshot[key].daily.length > 0) {
-        toolResult = scannedSnapshot[key];
-        source = 'snapshot (fallback)';
-      }
-    }
-
-    if (!toolResult || !Array.isArray(toolResult.daily) || toolResult.daily.length === 0) {
-      continue;
-    }
-    for (const entry of toolResult.daily) {
-      if (!entry.date) continue;
-      const tokens  = entry.tokens_used || entry.totalTokens || 0;
-      const cost    = entry.cost_usd || entry.totalCost || 0;
-      const sessions = entry.sessions || (tokens > 0 ? 1 : 0) || (cost > 0 ? 1 : 0) || 0;
-      if (sessions === 0 && tokens === 0) continue; // skip truly empty days
-      heatmapData.push({ toolKey: key, date: entry.date, sessions, tokens, cost });
-    }
-  }
-
-  return {
-    cardData: {
-      title: cardTitle, timeframe, username, theme, tools: toolData,
-      metrics: selectedMetrics.map(k => METRICS.find(m => m.key === k)).filter(Boolean),
-      heatmapData,
-    },
-    outputBase,
-  };
+  gap();
+  print([`${ui.ok(sym.ok)} Created ${ui.accent(outPath)}`, '', ...para(`Edit the values, then run: stackpulse --config ${outPath}`, max())]);
+  gap();
 }
 
 // ─── CLI ──────────────────────────────────────────────────────────────────────
 const program = new Command();
 program
   .name('stackpulse')
-  .description('Generate a shareable card for your AI coding tool stack')
+  .description('Generate an HTML report of your AI coding tool usage')
   .version(PKG_VERSION)
   .option('-c, --config <file>', 'Load from YAML or JSON config file')
   .option('-o, --output <n>',    'Output base filename (no extension)', 'stackpulse')
-  .option('--theme <theme>',     'Override theme')
+  .option('--theme <theme>',     `Override theme (${THEME_KEYS.join(', ')})`)
   .option('--title <title>',     'Override card title')
   .option('--timeframe <range>', 'Override timeframe')
   .option('--username <handle>', 'Override handle')
   .option('--init [file]',       'Scaffold a starter YAML config')
+  .option('-y, --yes',           'Generate with defaults, without prompts')
+  .option('--open',              'Open the report in your browser when done')
+  .option('--details',           'Print token types, models and detection results after the scan')
   .parse(process.argv);
 
 const opts = program.opts();
@@ -646,15 +408,45 @@ if (opts.theme !== undefined && !THEME_KEYS.includes(opts.theme)) {
   process.exit(1);
 }
 
+const isCancel = (err) => err?.name === 'ExitPromptError' || err?.name === 'AbortPromptError';
+
 (async () => {
-  printBanner();
+  gap();
+  print(screens.header(PKG_VERSION, { max: max() }));
   if (opts.init !== undefined) {
     scaffoldConfig(typeof opts.init === 'string' ? opts.init : 'ai-usage.yaml');
-    process.exit(0);
+    return;
   }
-  const result = opts.config
-    ? (console.log(chalk.dim(`  Loading config: ${opts.config}\n`)), runFromConfig(opts.config, opts))
-    : await runWizard({ title: opts.title, timeframe: opts.timeframe, username: opts.username,
-        theme: opts.theme, output: opts.output });
-  await writeOutputs(result);
-})();
+  if (opts.config) {
+    gap();
+    print(`  Loading config: ${opts.config}`);
+    await writeReport(runFromConfig(opts.config, opts));
+    return;
+  }
+
+  gap();
+  const scan = await scanMachine();
+  print(screens.scanSummary(scan, { max: max() }));
+  if (opts.details) printAllDetails(scan);
+
+  const interactive = !!process.stdin.isTTY && !!process.stdout.isTTY && !opts.yes;
+  let result;
+  if (interactive) {
+    result = await runInteractive(scan, opts);
+    if (!result) return;
+  } else {
+    if (!Object.keys(scan.results).length) {
+      fail('No usage data was found, so there is nothing to report. Run stackpulse in a terminal to enter numbers, or use --init and --config.');
+    }
+    gap();
+    if (!opts.yes) print(para('Not an interactive terminal: generating the report with defaults. Use --config for full control.', max()));
+    result = { ...defaultReport(scan, opts), open: !!opts.open };
+  }
+  await writeReport(result);
+})().catch((err) => {
+  if (isCancel(err)) {
+    console.log(`\n\n  Cancelled. No report was written.\n`);
+    process.exit(130);
+  }
+  fail(firstLine(err?.message) || String(err));
+});

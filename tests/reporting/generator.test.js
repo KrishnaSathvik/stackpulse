@@ -23,9 +23,11 @@ test('every user-controlled string is escaped', () => {
       metrics: { sessions: 1, tokens_used: 1, cost_usd: 1 }, costInfo: { kind: 'estimated', unpricedModels: ['<b>m</b>'] } }],
     metrics: METRICS.map(m => ({ ...m, label: m.label + '<u>' })),
   }));
-  for (const needle of ['<img', '<script>alert', '<svg onload', '<i>', '<b>m</b>', 'javascript:', '<u>']) {
+  for (const needle of ['<img src=x', '<script>alert', '<svg onload', '<i>', '<b>m</b>', 'javascript:', '<u>']) {
     assert.equal(html.includes(needle), false, `unescaped: ${needle}`);
   }
+  // The only images are the embedded StackPulse logo (footer), never anything from input.
+  assert.deepEqual([...html.matchAll(/<img [^>]*src="([^"]{0,22})/g)].map(m => m[1]), ['data:image/png;base64,']);
   assert.ok(html.includes('&lt;img src=x onerror=alert(1)&gt;'));
 });
 
@@ -151,4 +153,126 @@ test('active days count distinct dates: one day used in two tools is one active 
     heatmapData: [{ toolKey: 'codex', date: today, sessions: 2, tokens: 5, cost: 1 }, { toolKey: 'cursor', date: today, sessions: 3, tokens: 0, cost: 0 }],
   }));
   assert.match(html, /class="hm-summary">1 active day</);
+});
+
+test('a cost that depends on an unrecorded service tier is marked and explained', () => {
+  const tier = { unrecorded: 'standard', configured: 'priority', configuredUsd: 2911.75, dependentUsd: 725.35 };
+  const html = generateHTML(card({ tools: [{ key: 'codex', name: 'Codex', icon: '◇', color: '#10A37F',
+    metrics: { sessions: 312, tokens_used: 3150000, cost_usd: 2186.40 }, costInfo: { kind: 'estimated', status: 'complete', tier } }] }));
+  assert.ok(html.includes('‡ Codex: usage that recorded no service tier is costed at the standard rate.'));
+  assert.ok(html.includes('“priority” tier set in the current Codex config, the estimate would be $2,911.75'));
+  assert.equal((html.match(/Depends on an unrecorded service tier/g) || []).length, 2, 'tool cost and total cost are marked');
+  const plain = generateHTML(card());
+  assert.ok(!plain.includes('service tier'));
+});
+
+// ─── Token composition, model IDs, provenance (3.4.0) ────────────────────────
+import { buildCardData, tokenParts } from '../../src/cli/card.js';
+import { toolDetails } from '../../src/cli/screens.js';
+
+const scannedForComposition = () => ({
+  claude_code: { sessions: 3, tokens_used: 4200030, cost_usd: 2.4, cost: { kind: 'estimated', status: 'complete' },
+    tokens: { input: 30000, output: 15000000, cacheRead: 4050000000, cacheWrite: 135000000, total: 4200030000 },
+    modelBreakdown: [{ model: 'claude-opus-5-5', displayName: 'Opus 5.5', tokens_used: 4200030, cost_usd: 2.4, costStatus: 'complete' }] },
+  // Recorded total larger than its typed parts: the remainder is "other", never dropped.
+  gemini: { sessions: 2, tokens_used: 3400, cost_usd: 1, cost: { kind: 'estimated', status: 'complete' },
+    tokens: { input: 2100000, output: 312400, cacheRead: 932100, cacheWrite: 0, total: 3418400 } },
+  kilocode: { sessions: 1, tokens_used: 10, cost_usd: 0.5, cost: { kind: 'recorded', status: 'complete' } },
+});
+const details = { title: 't', timeframe: 'f', username: '', theme: 'dark' };
+const metricsAll = ['sessions', 'tokens_used', 'cost_usd'];
+
+test('token composition: same counts as the collector, other remainder, uncovered tools named', () => {
+  const scanned = scannedForComposition();
+  const card = buildCardData({ scanned, selectedKeys: ['claude_code', 'gemini', 'kilocode'], selectedMetrics: metricsAll, details });
+  const c = card.tokenComposition;
+  assert.equal(c.tools.length, 2);
+  assert.equal(c.totals.total, 4200030000 + 3418400);
+  assert.equal(c.totals.other, 3418400 - (2100000 + 312400 + 932100));
+  assert.equal(c.uncovered, 1, 'Kilo reports a total without a breakdown');
+  const html = generateHTML(card);
+  assert.ok(html.includes('Token composition'));
+  assert.ok(html.includes('4.20B tokens'));
+  assert.ok(html.includes('Other: tokens a tool counts in its total but does not split by type.'));
+  assert.ok(html.includes('1 tool reports a token total without a breakdown by type'));
+  assert.ok(html.includes('Cache reads are conversation context'));
+});
+
+test('the CLI details view and the report show the same composition for a tool', () => {
+  const scanned = scannedForComposition();
+  const parts = tokenParts(scanned.gemini.tokens);
+  const cli = toolDetails('gemini', scanned.gemini, { max: 100 }).join('\n');
+  const html = generateHTML(buildCardData({ scanned, selectedKeys: ['gemini'], selectedMetrics: metricsAll, details }));
+  for (const v of ['2.1M', '312.4K', '932.1K', '73.9K', '3.4M']) {
+    assert.ok(cli.includes(v), `CLI shows ${v}`);
+    assert.ok(html.includes(v), `report shows ${v}`);
+  }
+  assert.equal(parts.other, 73900);
+});
+
+test('no composition when tokens are not selected, or when a token total was entered by hand', () => {
+  const scanned = scannedForComposition();
+  assert.equal(buildCardData({ scanned, selectedKeys: ['claude_code'], selectedMetrics: ['sessions'], details }).tokenComposition, null);
+  const manual = buildCardData({ scanned, manualData: { claude_code: { tokens_used: 99 } }, selectedKeys: ['claude_code'], selectedMetrics: metricsAll, details });
+  assert.equal(manual.tokenComposition, null);
+  assert.ok(!generateHTML(manual).includes('Token composition'));
+});
+
+test('model rows show the exact model ID; cost cells say where the cost came from', () => {
+  const scanned = scannedForComposition();
+  scanned.claude_code.modelBreakdown.push({ model: 'claude-zephyr-9-1-experimental-preview-20261101', displayName: 'claude-zephyr-9-1-experimental-preview-20261101', tokens_used: 1, cost_usd: null, costStatus: 'unavailable' });
+  const html = generateHTML(buildCardData({ scanned, selectedKeys: ['claude_code', 'kilocode'], selectedMetrics: metricsAll, details }));
+  assert.ok(html.includes('<span class="model-name">Opus 5.5</span><span class="model-id">claude-opus-5-5</span>'));
+  assert.ok(html.includes('claude-zephyr-9-1-experimental-preview-20261101'), 'long ID kept whole');
+  assert.ok(!html.includes('<span class="model-id">claude-zephyr'), 'no duplicate ID when the name is the ID');
+  assert.ok(html.includes('<span class="c-kind">est.</span>') && html.includes('<span class="c-kind">rec.</span>'));
+});
+
+test('keyboard and assistive access: focus styles, header scopes, labelled charts and scroll regions', () => {
+  const html = generateHTML(buildCardData({ scanned: scannedForComposition(), selectedKeys: ['claude_code', 'gemini'], selectedMetrics: metricsAll, details }));
+  assert.ok(html.includes('.ft-btn:focus-visible{outline:2px solid'));
+  assert.ok(html.includes('<th scope="col">Tool</th>'));
+  assert.ok(/<svg[^>]+role="img" aria-label="[^"]+by tool:/.test(html));
+  assert.ok(html.includes('class="tbl-panel" tabindex="0" role="region"'));
+  assert.ok(html.includes('class="tok-bar" role="img" aria-label="Cache reads'));
+});
+
+test('model IDs and composition tool names from local logs are escaped', () => {
+  const evil = '"><img src=x onerror=alert(5)>';
+  const scanned = scannedForComposition();
+  scanned.claude_code.modelBreakdown = [{ model: evil, displayName: 'Opus', tokens_used: 1, cost_usd: 1, costStatus: 'complete' },
+    { model: 'b', displayName: 'b', tokens_used: 1, cost_usd: 1, costStatus: 'complete' }];
+  const html = generateHTML(buildCardData({ scanned, selectedKeys: ['claude_code', 'gemini'], selectedMetrics: metricsAll, details }));
+  assert.ok(!html.includes('<img src=x'));
+  assert.ok(html.includes('&quot;&gt;&lt;img src=x onerror=alert(5)&gt;'));
+});
+
+test('the report carries the StackPulse logo, embedded (no external file), as icon and in the footer', () => {
+  const html = generateHTML(card());
+  assert.ok(html.includes('<link rel="icon" type="image/png" href="data:image/png;base64,'));
+  assert.ok(html.includes('<img class="ft-logo" src="data:image/png;base64,'));
+  assert.ok(!/src="(?!data:)[^"]*logo/.test(html), 'no external logo reference');
+});
+
+test('costs show to the cent with separators, the same figure the CLI prints', () => {
+  const html = generateHTML(card({ tools: [
+    { key: 'codex', name: 'Codex', icon: '◇', color: '#10A37F', metrics: { sessions: 312, tokens_used: 3150000, cost_usd: 2186.40 }, costInfo: { kind: 'estimated', status: 'complete' } },
+    { key: 'claude_code', name: 'Claude Code', icon: '◆', color: '#D97706', metrics: { sessions: 48, tokens_used: 4200030, cost_usd: 12430.28 }, costInfo: { kind: 'estimated', status: 'complete' } },
+  ] }));
+  for (const v of ['$2,186.40', '$12,430.28', '$14,616.68']) assert.ok(html.includes(v), v);
+  assert.ok(!/\$2,186<|\$12\.4k/.test(html), 'no rounded or abbreviated cost');
+});
+
+test('the Codex auto-review pricing assumption is stated in the report and in details', async () => {
+  const { normalizeCcusageReport, CODEX_AUTO_REVIEW_NOTE } = await import('../../src/collectors/ccusage.js');
+  const row = (model, cost) => ({ modelName: model, inputTokens: 1000, outputTokens: 10, cacheReadTokens: 0, cacheCreationTokens: 0, cost });
+  const report = { daily: [{ period: '2026-10-01', agents: [{ agent: 'codex', inputTokens: 2000, outputTokens: 20, cacheReadTokens: 0, cacheCreationTokens: 0, totalCost: 0.02,
+    modelBreakdowns: [row('gpt-6-astra', 0.01), row('gpt-5.6-luna', 0.01)] }] }], session: [] };
+  const codex = normalizeCcusageReport(report).tools.codex;
+  assert.deepEqual(codex.cost.assumptions, [CODEX_AUTO_REVIEW_NOTE]);
+  assert.ok(toolDetails('codex', codex, { max: 120 }).join(' ').includes('priced as gpt-5.6-luna'));
+  const html = generateHTML(buildCardData({ scanned: { codex }, selectedKeys: ['codex'], selectedMetrics: metricsAll, details }));
+  assert.ok(html.includes('Codex: Auto-review usage has no published price; it is counted and priced as gpt-5.6-luna.'));
+  const noLuna = normalizeCcusageReport({ ...report, daily: [{ ...report.daily[0], agents: [{ ...report.daily[0].agents[0], modelBreakdowns: [row('gpt-6-astra', 0.02)] }] }] }).tools.codex;
+  assert.equal(noLuna.cost.assumptions, undefined, 'no note when no gpt-5.6-luna row');
 });

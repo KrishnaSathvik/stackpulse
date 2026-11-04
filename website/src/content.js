@@ -129,29 +129,77 @@ export const METRIC_KEYS = [
 ];
 export const TOOL_KEYS = ['claude_code', 'codex', 'opencode', 'amp', 'pi', 'gemini', 'qwen', 'kimi', 'cursor', 'antigravity', 'roocode', 'kilocode', 'aider'];
 
+// Docs content. Every command and flag here matches `stackpulse --help` (3.4.0).
+// Text in backticks renders as inline code.
 export const DOCS = {
-  commands: [
-    { cmd: 'npx stackpulse', text: 'Scan your tools and build a report interactively.' },
-    { cmd: 'npx stackpulse --init stackpulse.yaml', text: 'Create a starter config file to fill in by hand.' },
-    { cmd: 'npx stackpulse --config stackpulse.yaml', text: 'Build a report from a YAML or JSON config, no prompts.' },
-    { cmd: 'npx stackpulse -c stackpulse.yaml -o my-card', text: 'Choose the output file name (my-card.html).' },
+  // CLI reference: [flag or command, purpose, example]; grouped for scanning.
+  cli: [
+    ['Run', [
+      ['-y, --yes', 'Write the default report without prompts', 'npx stackpulse --yes'],
+      ['--open', 'Open the report in your browser when it is written', 'npx stackpulse --yes --open'],
+      ['--details', 'Also print token types, models and detection results', 'npx stackpulse --details'],
+    ]],
+    ['Report', [
+      ['-o, --output <name>', 'File name without extension. Default: stackpulse', 'npx stackpulse -o my-report'],
+      ['--theme <name>', 'dark, light, cosmic, forge, arctic, verdant or neon', 'npx stackpulse --theme light'],
+      ['--title <text>', 'Report title', 'npx stackpulse --title "My AI Stack"'],
+      ['--timeframe <text>', 'Timeframe label', 'npx stackpulse --timeframe "2026"'],
+      ['--username <handle>', 'Handle shown on the report', 'npx stackpulse --username @you'],
+    ]],
+    ['Config and info', [
+      ['--init [file]', 'Write a starter config. Default: ai-usage.yaml', 'npx stackpulse --init stackpulse.yaml'],
+      ['-c, --config <file>', 'Build from a YAML or JSON file, with no prompts', 'npx stackpulse -c stackpulse.yaml'],
+      ['-V, --version', 'Print the version', 'npx stackpulse -V'],
+      ['-h, --help', 'Print help', 'npx stackpulse --help'],
+    ]],
   ],
-  flags: [
-    ['-o, --output <name>', 'Output file name without extension (default: stackpulse)'],
-    ['--theme <name>', 'dark, light, cosmic, forge, arctic, verdant or neon'],
-    ['--title <text>', 'Card title'],
-    ['--timeframe <text>', 'Timeframe label, e.g. "2026 — All Time"'],
-    ['--username <handle>', 'Handle shown on the card'],
+  // Understanding results: [what you see, what it means]. The only place these are explained.
+  results: [
+    ['Sessions', 'Conversations or sessions, counted the way each tool records them. Roo Code records tasks.'],
+    ['Activity', 'A year of days with usage, one row per tool. Active days count each date once.'],
+    ['Cache reads', 'Context the model reads again on each turn. Usually most of the total, priced far below new input, and not newly written text.'],
+    ['Cache writes', 'Context stored for reuse on later turns.'],
+    ['Output', 'Text the models generated.'],
+    ['Uncached input', 'New input sent to the model.'],
+    ['Other', 'Tokens a tool counts in its total but does not split by type.'],
+    ['est.', 'Estimated at API list prices. Not a subscription bill.'],
+    ['rec.', 'Cost the tool recorded itself (Roo Code, Kilo Code).'],
+    ['—', 'Not recorded by this tool. A real zero shows as $0.00.'],
+    ['≥', 'Lower bound: some usage has no known price and is left out.'],
+    ['‡', 'Codex usage with no recorded service tier is priced at the standard rate; the estimate at your configured tier is shown too.'],
+    ['gpt-5.6-luna', 'In Codex, this row also includes auto-review usage, which has no published price and is priced at gpt-5.6-luna rates.'],
+    ['incomplete', 'Part of a tool’s data could not be read. The reason is shown, and its numbers are lower bounds.'],
   ],
+  // Capability matrix. Matches the README table and parsers/.
+  matrix: {
+    'Claude Code': ['Yes', 'Yes', 'est.', 'Yes', ''],
+    'OpenAI Codex': ['Yes', 'Yes', 'est.', 'Yes', ''],
+    'Cursor': ['Composer', '—', '—', '—', ''],
+    'Gemini CLI': ['Yes', 'Yes', 'est.', 'Yes', ''],
+    'OpenCode': ['Yes', 'Yes', 'est.', 'Yes', ''],
+    'Amp': ['Yes', 'Yes', 'est.', 'Yes', ''],
+    'Pi Agent': ['Yes', 'Yes', 'est.', 'Yes', ''],
+    'Qwen Code': ['Yes', 'Yes', 'est.', 'Yes', ''],
+    'Kimi CLI': ['Yes', 'Yes', 'est.', 'Yes', 'Includes Kimi Code'],
+    'Antigravity': ['Yes', 'Yes', 'est.', 'Yes', 'Sessions only without conversation history'],
+    'Roo Code': ['Tasks', 'Yes', 'rec.', '—', ''],
+    'Kilo Code': ['Yes', 'Yes', 'rec.', '—', ''],
+    'Aider': ['Yes', '—', '—', '—', 'AI commits and lines'],
+  },
   requirements: [
-    'Node.js 20.12 or newer (22.13+ recommended).',
-    'Cursor, Roo Code and Kilo Code are read from SQLite: built into Node 22.5+, or the sqlite3 command-line tool on Node 20.',
-    'Verified on macOS and Linux. Windows is not verified.',
+    ['Node.js', '20.12 or newer. 22.13 or newer is recommended.'],
+    ['SQLite', 'Cursor, Roo Code and Kilo Code are read from SQLite: built into Node 22.5+, or install the `sqlite3` command-line tool on Node 20.'],
+    ['Systems', 'Verified on macOS and Linux. Windows is not verified.'],
+    ['Privacy', 'Reads files already on your disk. No account or API key, and nothing is uploaded. npx downloads the package from npm; the report loads its fonts from Google Fonts when opened.'],
   ],
-  privacy: [
-    'StackPulse reads the usage files your tools already keep on your disk.',
-    'No account, sign-up or API keys. Nothing is uploaded.',
-    'The report is a single HTML file saved where you choose.',
-    'Running it with npx downloads the package from npm. When opened, the report loads its fonts from Google Fonts.',
+  troubleshooting: [
+    ['A tool you use is not found', 'StackPulse reads each tool’s default location. Choose Customize report and select the tool to enter its numbers.'],
+    ['Nothing is found', 'Choose Customize report to enter numbers, or start from a config with `--init`.'],
+    ['Tokens, cost or models show —', 'That tool does not record them locally. Models with no known price show “no price” in View details.'],
+    ['A tool is marked incomplete', 'Part of its data could not be read. The reason is printed under the summary and in the report.'],
+    ['Out of memory on a large history', 'The collector needs about twice your logs’ size in RAM. Close other apps and run it again.'],
+    ['Cursor is incomplete on Node 20', 'With the `sqlite3` tool, each query on a large Cursor database stops after 120 s. Use Node 22.5+, or raise the limit with `STACKPULSE_SQLITE_TIMEOUT_MS` (up to 10 minutes).'],
+    ['Running in a script or CI', 'Without an interactive terminal, StackPulse writes the default report without asking. `--yes` does the same anywhere.'],
+    ['Colours', 'Output uses your terminal’s own text colour. Set `NO_COLOR=1` to turn colour off.'],
   ],
 };

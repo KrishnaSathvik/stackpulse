@@ -25,8 +25,11 @@ import { readOomKillCount } from '../utils/oom.js';
 import { displayModelName } from '../models/catalog.js';
 import { localDate } from '../utils/dates.js';
 import { recordCost, roundUsd, summarizeCost } from '../core/cost.js';
+import { codexHome, codexOnlyEnv, codexViewWithoutConfig, configuredServiceTier, droppedForks, sweepStaleTempDirs, tempDir,
+  tierChangesCost, writeRecoveredHome } from './codex.js';
 
 export const CCUSAGE_VERSION = '20.0.46';
+export const CODEX_AUTO_REVIEW_NOTE = 'Auto-review usage has no published price; it is counted and priced as gpt-5.6-luna.';
 
 /** ccusage agent name → StackPulse tool key. Only these are counted from ccusage. */
 export const AGENT_TO_TOOL = {
@@ -104,13 +107,15 @@ export function runCcusage(opts = {}) {
   try { args = buildArgs(opts); } catch (e) { return Promise.reject(e); }
 
   const oomBefore = readOomKillCount();
+  // opts.env overrides process.env without touching it; an `undefined` value removes a variable
+  const env = { ...process.env, ...(opts.env || {}), NO_COLOR: '1', FORCE_COLOR: '0' };
+  for (const k of Object.keys(env)) if (env[k] === undefined) delete env[k];
   return new Promise((resolve, reject) => {
     execFile(process.execPath, [found.cli, ...args], {
       timeout,
       maxBuffer: 256 * 1024 * 1024,
       windowsHide: true,
-      // opts.env overrides (used by the sharded collector) without touching process.env
-      env: { ...process.env, ...(opts.env || {}), NO_COLOR: '1', FORCE_COLOR: '0' },
+      env,
     }, (err, stdout, stderr) => {
       if (err) {
         if (err.killed) return reject(new CollectorError('timeout', `ccusage timed out after ${Math.round(timeout / 1000)}s`));
@@ -169,9 +174,80 @@ export function getCcusageReport(opts = {}) {
   const key = JSON.stringify([opts.since ?? null, opts.until ?? null, LOCATION_ENV.map(k => process.env[k] ?? null)]);
   if (!pending || pendingKey !== key) {
     pendingKey = key;
-    pending = runCcusage(opts).then(normalizeCcusageReport);
+    pending = collectReport(opts).then(normalizeCcusageReport);
   }
   return pending;
+}
+
+/**
+ * One collector run with the Codex corrections from ./codex.js applied:
+ * Codex is read without today's config.toml (recorded tiers kept, unrecorded
+ * usage at the standard rate), forked sessions the collector dropped are
+ * recovered, and when config.toml sets another tier its effect is measured.
+ * Returns a raw collector report, extended with `codex` notes for normalization.
+ */
+export async function collectReport(opts = {}) {
+  const home = opts.codexHome === undefined ? codexHome() : opts.codexHome;
+  if (!home) return runCcusage(opts);
+  sweepStaleTempDirs();   // folders a crashed scan may have left
+  const temps = [];
+  const temp = (prefix) => { const t = tempDir(prefix); temps.push(t); return t.dir; };
+  try {
+    const view = codexViewWithoutConfig(home);
+    temps.push(view);
+    const report = await runCcusage({ ...opts, env: { ...(opts.env || {}), CODEX_HOME: view.dir } });
+    const codex = { recovered: [], unverified: [], tier: null };
+    report.codex = codex;
+
+    // Codex-only passes read an empty HOME, so no other agent is counted twice.
+    const empty = temp('empty');
+    const codexPass = (dir) => runCcusage({ ...opts, env: { ...(opts.env || {}), ...codexOnlyEnv(dir, empty) } });
+    const codexRows = (r) => ({
+      daily: (r.daily || []).map(row => ({ ...row, agents: (row.agents || []).filter(a => a.agent === 'codex') })),
+      session: (r.session || []).filter(s => s.agent === 'codex'),
+    });
+
+    const counted = new Set((report.session || []).filter(s => s.agent === 'codex').map(s => s.period));
+    const forks = droppedForks(home, counted);
+    codex.unverified = forks.unverified;
+    let recoveredRows = null;
+    if (forks.recovered.length) {
+      recoveredRows = codexRows(await codexPass(writeRecoveredHome(forks.recovered, temp('forks'))));
+      // Accept a session only when the collector's count matches the independent one,
+      // so a replay the filter missed can never be counted twice.
+      const own = new Map(forks.recovered.map(f => [f.period, f.tokens]));
+      const ok = new Set(recoveredRows.session.filter(s => s.totalTokens === own.get(s.period)).map(s => s.period));
+      for (const f of forks.recovered) (ok.has(f.period) ? codex.recovered : codex.unverified).push(f.period);
+      if (ok.size === forks.recovered.length) {
+        report.daily = [...(report.daily || []), ...recoveredRows.daily];
+        report.session = [...(report.session || []), ...recoveredRows.session.filter(s => ok.has(s.period))];
+        codex.recoveredTokens = recoveredRows.session.reduce((a, s) => a + num(s.totalTokens), 0);
+      } else {
+        // Daily rows can't be split per session, so a partial match recovers nothing.
+        codex.unverified = [...forks.unverified, ...forks.recovered.map(f => f.period)];
+        codex.recovered = [];
+      }
+    }
+
+    const tier = configuredServiceTier(home);
+    if (tierChangesCost(tier)) {
+      codex.tier = { configured: tier, configuredUsd: null };
+      try {
+        const alt = codexRows(await codexPass(home));
+        if (codex.recovered.length) {
+          const altForks = codexRows(await codexPass(writeRecoveredHome(forks.recovered, temp('forks-cfg'), home)));
+          alt.daily.push(...altForks.daily);
+          alt.session.push(...altForks.session);
+        }
+        codex.tier.configuredUsd = normalizeCcusageReport(alt).tools.codex?.cost.usd ?? null;
+      } catch (e) {
+        codex.tier.error = String(e.message || e).split('\n')[0];
+      }
+    }
+    return report;
+  } finally {
+    for (const t of temps) t.cleanup();
+  }
 }
 
 /** For tests: drop the memoized collector result. */
@@ -319,6 +395,42 @@ export function normalizeCcusageReport(report) {
     const key = AGENT_TO_TOOL[agent];
     warnedTools.set(key, [...(warnedTools.get(key) || []), d]);
     if (tools[key]) tools[key].diagnostics.push(d);
+  }
+
+  // Pricing assumption made by the collector: Codex auto-review usage has no published
+  // price, so it is counted and priced as gpt-5.6-luna (measured on 20.0.46). Say so
+  // wherever a gpt-5.6-luna row appears, since the two cannot be told apart in its output.
+  if (tools.codex?.modelBreakdown.some(m => m.model === 'gpt-5.6-luna')) {
+    tools.codex.cost = { ...tools.codex.cost, assumptions: [...(tools.codex.cost.assumptions || []), CODEX_AUTO_REVIEW_NOTE] };
+  }
+
+  // Codex corrections (collectReport): recovered forks, forks that could not be
+  // verified (a known undercount, so coverage is partial), and tier dependence.
+  const cx = report?.codex;
+  if (cx && tools.codex) {
+    const t = tools.codex;
+    const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+    if (cx.recovered?.length) {
+      t.diagnostics.push({ level: 'info', code: 'codex-forks-recovered',
+        message: `${plural(cx.recovered.length, 'forked subagent session')} (${(num(cx.recoveredTokens) / 1e6).toFixed(1)}M tokens) `
+          + 'that the collector skipped are included; history replayed from the parent session is not counted again.' });
+    }
+    if (cx.unverified?.length) {
+      const d = { level: 'warn', code: 'codex-forks-unverified',
+        message: `${plural(cx.unverified.length, 'forked subagent session')} could not be separated from history replayed `
+          + 'from the parent session and are not counted.' };
+      diagnostics.push(d); t.diagnostics.push(d);
+      warnedTools.set('codex', [...(warnedTools.get('codex') || []), d]);
+    }
+    if (cx.tier?.configuredUsd != null && t.cost.usd != null && Math.abs(cx.tier.configuredUsd - t.cost.usd) >= 0.005) {
+      t.cost = { ...t.cost, tier: {
+        unrecorded: 'standard', configured: cx.tier.configured,
+        configuredUsd: roundUsd(cx.tier.configuredUsd), dependentUsd: roundUsd(cx.tier.configuredUsd - t.cost.usd) } };
+    } else if (cx.tier?.error) {
+      t.diagnostics.push({ level: 'warn', code: 'codex-tier-unchecked',
+        message: `could not check how the "${cx.tier.configured}" service tier in your Codex config affects cost (${cx.tier.error}); `
+          + 'usage with no recorded tier is costed at the standard rate.' });
+    }
   }
 
   // Per-source outcome, so callers never confuse "nothing there" with "couldn't read it":

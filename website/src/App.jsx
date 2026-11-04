@@ -1,4 +1,4 @@
-import { Activity, FinalCTA, Features, Footer, Header, Hero, Story, Themes, Tools } from './components/sections.jsx';
+import { FinalCTA, Features, Footer, Header, Hero, Story, Themes, Tools } from './components/sections.jsx';
 import { useReveal, useSiteTheme } from './components/ui.jsx';
 
 export default function App() {
@@ -10,8 +10,7 @@ export default function App() {
       <Header theme={theme} onToggleTheme={toggleTheme} />
       <main id="main">
         <Hero />
-        <Story theme={theme} />
-        <Activity theme={theme} />
+        <Story />
         <Features />
         <Tools />
         <Themes />

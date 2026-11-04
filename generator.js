@@ -1,5 +1,7 @@
 import { escapeHtml, safeColor } from './src/utils/html.js';
 import { localDate } from './src/utils/dates.js';
+import { TOKEN_PARTS } from './src/cli/card.js';
+import { LOGO_DATA_URI } from './src/utils/brand.js';
 
 export function generateHTML(input) {
   // Everything below interpolates these escaped copies; raw values are only
@@ -40,10 +42,9 @@ export function generateHTML(input) {
     if (!metric) return String(val);
     if (val === 0) return metric.key === 'cost_usd' ? '$0.00' : '0';
     if (metric.key === 'cost_usd') {
-      if (val >= 10000) return '$' + (val / 1000).toFixed(1) + 'k';
-      if (val >= 1000)  return '$' + Math.round(val).toLocaleString();
       if (val > 0 && val < 0.005) return '&lt;$0.01';   // never let a real cost read as "$0.00" (HTML-escaped)
-      return '$' + Number(val).toFixed(2);
+      // To the cent, with thousands separators: the same figure the CLI prints.
+      return '$' + Number(val).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
     if (metric.key === 'tokens_used') {
       // val is in thousands of tokens: 1e6 K = 1B ("5.36B", not "5363.7M").
@@ -92,8 +93,15 @@ export function generateHTML(input) {
   const unpricedModels = [...new Set(costInfos.flatMap(c => c.unpricedModels || []))];
   const pricingSources = [...new Set(costInfos.map(c => c.pricingSource).filter(Boolean))];
   // '*' marks a cost that is a lower bound: some usage behind it has no known price
+  // '‡' marks a cost that assumes the standard rate where no service tier was recorded
+  const tierTools = topLevel.filter(tool => tool.costInfo?.tier && isKnown(tool.costInfo.tier.configuredUsd) && isKnown(tool.metrics.cost_usd));
+  // Where each tool's cost comes from, beside the amount: estimated, recorded or mixed.
+  const KIND = { estimated: 'est.', recorded: 'rec.', mixed: 'mixed' };
+  const costKind = (tool, metric, val) => (metric.key === 'cost_usd' && val != null && KIND[tool.costInfo?.kind]
+    ? '<span class="c-kind">' + KIND[tool.costInfo.kind] + '</span>' : '');
   const costMark = (tool, metric, val) =>
-    metric.key === 'cost_usd' && val != null && isPartialCost(tool.costInfo) ? '<sup class="s-flag">*</sup>' : '';
+    (metric.key === 'cost_usd' && val != null && isPartialCost(tool.costInfo) ? '<sup class="s-flag">*</sup>' : '')
+    + (metric.key === 'cost_usd' && val != null && !tool.isModelRow && tierTools.includes(tool) ? '<sup class="s-flag" title="Depends on an unrecorded service tier \u2014 see note below">\u2021</sup>' : '');
 
   // ── Header summary ─────────────────────────────────────────────────────────
   // The stat strip already shows sessions, tokens and cost. The visible subtitle
@@ -121,7 +129,7 @@ export function generateHTML(input) {
           return '<td class="metric-cell"><span class="ph-sessions">' + Number(val).toLocaleString() + (val === 1 ? ' session' : ' sessions') + '</span></td>';
         }
         if ((metric.key === 'tokens_used' || metric.key === 'cost_usd') && val > 0) {
-          return '<td class="metric-cell"><span class="ph-agg" style="color:' + tool.color + '">' + fmtVal(val, metric) + ' total</span></td>';
+          return '<td class="metric-cell"><span class="ph-agg" style="color:' + tool.color + '">' + fmtVal(val, metric) + ' total</span>' + costMark(tool, metric, val) + costKind(tool, metric, val) + '</td>';
         }
         return '<td class="metric-cell"></td>';
       }).join('');
@@ -147,7 +155,10 @@ export function generateHTML(input) {
       toolRows += '<tr class="tool-row model-row" style="animation-delay:' + (rowIdx*40) + 'ms">'
         + '<td class="name-cell model-name-cell">'
         + '<span class="model-branch" style="color:' + tool.color + '44">' + branch + '\u2500</span>'
-        + '<span class="model-name">' + tool.name + '</span>'
+        + '<span class="model-label"><span class="model-name">' + tool.name + '</span>'
+        // The exact model ID, when the display name is a friendlier label for it
+        + (tool.modelId && escapeHtml(tool.modelId) !== tool.name ? '<span class="model-id">' + escapeHtml(tool.modelId) + '</span>' : '')
+        + '</span>'
         + '</td>' + cells + '</tr>';
       rowIdx++;
 
@@ -161,6 +172,7 @@ export function generateHTML(input) {
           + '<span class="bar-track"' + (val > 0 ? ' style="color:' + tool.color + '"' : '') + '>'
           + '<span class="bar-fill" style="width:' + (val > 0 ? Math.max(pct,4) : 0) + '%;background:' + tool.color + ';opacity:' + (val > 0 ? 0.75 : 0) + '"></span></span>'
           + '<span class="bar-val"' + (isKnown(val) ? '' : ' title="Not available from this tool&#39;s local data"') + ' style="color:' + (val > 0 ? tool.color : t.textDim) + '">' + fmtVal(val, metric) + costMark(tool, metric, val) + '</span>'
+          + costKind(tool, metric, val)
           + '</div></td>';
       }).join('');
       toolRows += '<tr class="tool-row" style="animation-delay:' + (rowIdx*55) + 'ms">'
@@ -170,6 +182,48 @@ export function generateHTML(input) {
         + '</td>' + cells + '</tr>';
       rowIdx++;
     }
+  }
+
+  // ── Token composition — counts come from buildCardData (src/cli/card.js) ──
+  // The same normalized counts the CLI details view shows; nothing is derived here
+  // beyond shares of the total.
+  function fmtTokens(n) {
+    if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
+    if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+    if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+    return String(n);
+  }
+  let tokenHtml = '';
+  const comp = input.tokenComposition;
+  if (comp && comp.totals && comp.totals.total > 0) {
+    const shades = { cacheRead: [t.accent, 1], cacheWrite: [t.accent, 0.5], output: [t.text, 0.8], input: [t.textMuted, 0.75], other: [t.borderAccent, 1] };
+    const parts = TOKEN_PARTS.filter(p => comp.totals[p.key] > 0);
+    const pct = (v) => { const x = (v / comp.totals.total) * 100; return (x > 0 && x < 0.1 ? '<0.1' : x.toFixed(1)) + '%'; };
+    const swatch = (k) => 'background:' + shades[k][0] + ';opacity:' + shades[k][1];
+    const bar = parts.map(p => '<span class="tok-seg" style="width:' + ((comp.totals[p.key] / comp.totals.total) * 100) + '%;' + swatch(p.key) + '"></span>').join('');
+    const legend = parts.map(p => '<li><span class="tok-sw" style="' + swatch(p.key) + '"></span><span class="tok-lbl">' + p.label + '</span>'
+      + '<span class="tok-val">' + fmtTokens(comp.totals[p.key]) + '</span><span class="tok-pct">' + pct(comp.totals[p.key]).replace('<', '&lt;') + '</span></li>').join('');
+    const perTool = comp.tools.length > 1
+      ? '<div class="tok-tbl-wrap" tabindex="0" role="region" aria-label="Token composition by tool"><table class="tok-tbl"><thead><tr><th scope="col">Tool</th>'
+        + parts.map(p => '<th scope="col">' + p.label + '</th>').join('') + '<th scope="col">Total</th></tr></thead><tbody>'
+        + comp.tools.map(tt => '<tr><th scope="row"><span style="color:' + safeColor(tt.color) + '">' + escapeHtml(tt.name) + '</span></th>'
+          + parts.map(p => '<td>' + (tt[p.key] > 0 ? fmtTokens(tt[p.key]) : '\u2014') + '</td>').join('')
+          + '<td class="tok-tot">' + fmtTokens(tt.total) + '</td></tr>').join('')
+        + '</tbody></table></div>'
+      : '';
+    const notes = [];
+    if (comp.totals.cacheRead > 0) notes.push('Cache reads are conversation context the model reads again on each turn. They are priced far below new input, and they are not newly written text. Output is the text the models generated.');
+    if (comp.totals.other > 0) notes.push('Other: tokens a tool counts in its total but does not split by type.');
+    if (comp.uncovered > 0) notes.push(comp.uncovered + (comp.uncovered === 1 ? ' tool reports' : ' tools report') + ' a token total without a breakdown by type and ' + (comp.uncovered === 1 ? 'is' : 'are') + ' not included here.');
+    tokenHtml = ''
+      + '<section class="tok-section" aria-labelledby="tok-title">'
+      + '<div class="tok-head"><h2 class="tok-title" id="tok-title">Token composition</h2><span class="tok-total">' + fmtTokens(comp.totals.total) + ' tokens'
+      + (comp.tools.length > 1 ? ' \u00b7 ' + comp.tools.length + ' tools' : ' \u00b7 ' + escapeHtml(comp.tools[0].name)) + '</span></div>'
+      + '<div class="tok-bar" role="img" aria-label="' + parts.map(p => p.label + ' ' + pct(comp.totals[p.key]).replace('<', 'under ')).join(', ') + '">' + bar + '</div>'
+      + '<ul class="tok-legend">' + legend + '</ul>'
+      + perTool
+      + notes.map(n => '<p class="tok-note">' + n + '</p>').join('')
+      + '</section>';
   }
 
   // ── Heatmap — per-tool rows ────────────────────────────────────────────────
@@ -295,7 +349,7 @@ export function generateHTML(input) {
 
       const totalActiveDays = activeDates.size;
       heatmapHtml = ''
-        + '<div class="heatmap-section">'
+        + '<div class="heatmap-section" tabindex="0" role="img" aria-label="Daily activity over the last year: ' + totalActiveDays + (totalActiveDays === 1 ? ' active day' : ' active days') + ' across ' + hmTools.map(h => h.name).join(', ') + '">'
         + '  <div class="hm-header">'
         + '    <span class="hm-title">Activity</span>'
         + '    <span class="hm-summary">' + totalActiveDays + (totalActiveDays === 1 ? ' active day' : ' active days') + '</span>'   // per-day session counts are not available for every tool, so no session total here (the card header has the real one)
@@ -327,6 +381,7 @@ export function generateHTML(input) {
     '<div class="stat">'
     + '<div class="s-icon">' + m.icon + '</div>'
     + '<div class="s-val">' + fmtStatStrip(totals[m.key], m) + (m.key === 'cost_usd' && costPartial && totals[m.key] != null ? '<sup class="s-flag">*</sup>' : '')
+    + (m.key === 'cost_usd' && tierTools.length && totals[m.key] != null ? '<sup class="s-flag" title="Depends on an unrecorded service tier \u2014 see note below">\u2021</sup>' : '')
     + (incomplete.length ? '<sup class="s-flag" title="Includes incomplete sources \u2014 see note below">\u2020</sup>' : '') + '</div>'
     + '<div class="s-lbl">' + m.label + (m.key === 'cost_usd' && costEstimated ? ' (est.)' : '') + '</div>'
     + (coverage[m.key].known < coverage[m.key].of
@@ -418,12 +473,23 @@ export function generateHTML(input) {
     footnotes.push('\u2020 Incomplete: ' + tool.name + (why ? ' \u2014 ' + escapeHtml(why) : '') + '. Its figures are lower bounds.');
   }
   if (costEstimated) footnotes.push('Cost is an API-list-price estimate' + (pricingSources.length ? ' (' + escapeHtml(pricingSources.join('; ')) + ')' : '') + ', not a subscription bill.');
+  // Pricing assumptions the collector made (e.g. Codex auto-review priced as gpt-5.6-luna)
+  for (const tool of topLevel) {
+    if (!isKnown(tool.metrics.cost_usd)) continue;
+    for (const a of tool.costInfo?.assumptions || []) footnotes.push(escapeHtml(tool.name) + ': ' + escapeHtml(a));
+  }
+  for (const tool of tierTools) {
+    const tier = tool.costInfo.tier;
+    footnotes.push('\u2021 ' + escapeHtml(tool.name) + ': usage that recorded no service tier is costed at the standard rate. At the \u201c'
+      + escapeHtml(tier.configured) + '\u201d tier set in the current ' + escapeHtml(tool.name) + ' config, the estimate would be '
+      + fmtVal(tier.configuredUsd, { key: 'cost_usd' }) + '. Sessions that recorded a tier are costed at that tier either way.');
+  }
   if (costPartial) footnotes.push('* Lower bound: some usage has no known price' + (unpricedModels.length ? ' (' + escapeHtml(unpricedModels.join(', ')) + ')' : '') + '.');
   else if (unpricedModels.length) footnotes.push('No known price for: ' + escapeHtml(unpricedModels.join(', ')) + '; their cost is shown as unavailable.');
   const footnoteHtml = footnotes.length && (incomplete.length || metrics.some(m => m.key === 'cost_usd'))
     ? '  <div class="notes">' + footnotes.map(f => '<div>' + f + '</div>').join('') + '</div>\n' : '';
 
-  const colHeaders = metrics.map(m => '<th>' + m.icon + ' ' + m.label + '</th>').join('');
+  const colHeaders = metrics.map(m => '<th scope="col">' + m.icon + ' ' + m.label + '</th>').join('');
 
   // ── HTML output (plain string concat — NO nested template literals) ────────
   return '<!DOCTYPE html>\n'
@@ -437,6 +503,7 @@ export function generateHTML(input) {
   + '<meta name="twitter:card" content="summary_large_image"/>\n'
   + '<meta name="twitter:title" content="' + title + '"/>\n'
   + '<meta name="twitter:description" content="' + shareSummary + '"/>\n'
+  + '<link rel="icon" type="image/png" href="' + LOGO_DATA_URI + '"/>\n'
   + '<link rel="preconnect" href="https://fonts.googleapis.com"/>\n'
   + '<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet"/>\n'
   + '<style>\n'
@@ -471,11 +538,12 @@ export function generateHTML(input) {
   + 'table{width:100%;border-collapse:collapse}\n'
   + 'thead tr{border-bottom:2px solid ' + t.border + ';background:' + t.surfaceAlt + '}\n'
   + 'th{padding:10px 12px;font-size:9.5px;color:' + t.textMuted + ';text-transform:uppercase;letter-spacing:.06em;font-weight:700;text-align:left;white-space:nowrap}\n'
-  + 'th:first-child{padding-left:18px;width:150px}\n'
+  + 'th:first-child{padding-left:18px;width:220px}\n'
   + '.parent-hdr-row{background:' + t.surfaceAlt + '}\n'
   + '.parent-hdr-cell{padding:8px 18px 5px;display:flex;align-items:center;gap:8px}\n'
-  + '.ph-sessions{font-size:10.5px;font-weight:600;color:' + t.text + ';letter-spacing:.02em}\n'
-  + '.ph-agg{font-size:10px;font-weight:600;letter-spacing:.02em}\n'
+  + '.ph-sessions{font-size:10.5px;font-weight:600;color:' + t.text + ';letter-spacing:.02em;white-space:nowrap}\n'
+  + '.ph-agg{font-size:10px;font-weight:600;letter-spacing:.02em;white-space:nowrap}\n'
+  + '.parent-hdr-row .metric-cell{white-space:nowrap}\n'
   + '.ph-icon{font-size:12px;flex-shrink:0}\n'
   + '.ph-name{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.12em}\n'
   + '.tool-row{border-bottom:1px solid ' + t.border + ';opacity:0;animation:fadeIn .35s ease forwards}\n'
@@ -487,6 +555,32 @@ export function generateHTML(input) {
   + '.model-name-cell{display:flex;align-items:center;padding-left:12px !important}\n'
   + '.model-branch{font-family:monospace;font-size:11px;flex-shrink:0;letter-spacing:-1px;margin-right:4px}\n'
   + '.model-name{font-size:10.5px;font-weight:500;color:' + t.text + '}\n'
+  + '.model-label{display:flex;flex-direction:column;min-width:0;line-height:1.3}\n'
+  + '.model-id{font-size:9.5px;color:' + t.textMuted + ';overflow-wrap:anywhere;white-space:normal}\n'
+  + '.model-name-cell{white-space:normal;max-width:260px}\n'
+  + '.c-kind{font-size:9px;font-weight:600;color:' + t.textMuted + ';margin-left:3px;letter-spacing:.02em}\n'
+  + '.tok-section{padding:18px 32px 16px;border-top:1px solid ' + t.border + '}\n'
+  + '.tok-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}\n'
+  + '.tok-title{font-size:11px;font-weight:700;color:' + t.accent + ';text-transform:uppercase;letter-spacing:.14em}\n'
+  + '.tok-total{font-family:' + t.displayFont + ';font-size:15px;font-weight:700;color:' + t.text + '}\n'
+  + '.tok-bar{display:flex;height:10px;border-radius:5px;overflow:hidden;background:' + t.border + ';gap:2px}\n'
+  + '.tok-seg{display:block;min-width:2px}\n'
+  + '.tok-legend{list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px 20px;margin-top:12px}\n'
+  + '.tok-legend li{display:flex;align-items:baseline;gap:7px;font-size:12px;min-width:0}\n'
+  + '.tok-sw{width:9px;height:9px;border-radius:2px;flex:none;align-self:center}\n'
+  + '.tok-lbl{color:' + t.text + ';white-space:nowrap}\n'
+  + '.tok-val{font-weight:700;color:' + t.text + ';font-variant-numeric:tabular-nums}\n'
+  + '.tok-pct{color:' + t.textMuted + ';font-size:11px;font-variant-numeric:tabular-nums;min-width:44px;text-align:right}\n'
+  + '.tok-tbl-wrap{overflow-x:auto;margin-top:14px}\n'
+  + '.tok-tbl{font-size:11px;font-variant-numeric:tabular-nums}\n'
+  + '.tok-tbl th,.tok-tbl td{padding:6px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid ' + t.border + '}\n'
+  + '.tok-tbl thead th{font-size:9.5px;color:' + t.textMuted + ';text-transform:uppercase;letter-spacing:.06em;width:auto;padding-left:10px}\n'
+  + '.tok-tbl th:first-child{text-align:left;padding-left:0;width:auto}\n'
+  + '.tok-tbl tbody th{font-weight:600}\n'
+  + '.tok-tbl td{color:' + t.text + '}\n'
+  + '.tok-tbl .tok-tot{font-weight:700}\n'
+  + '.tok-tbl tbody tr:last-child th,.tok-tbl tbody tr:last-child td{border-bottom:none}\n'
+  + '.tok-note{font-size:10.5px;color:' + t.textMuted + ';line-height:1.6;margin-top:10px}\n'
   + 'td{padding:8px 12px;vertical-align:middle}\n'
   + 'td:first-child{padding-left:18px}\n'
   + '.name-cell{display:flex;align-items:center;gap:8px;white-space:nowrap}\n'
@@ -524,12 +618,15 @@ export function generateHTML(input) {
   + '.s-cov{font-size:9.5px;color:' + t.textMuted + ';margin-top:3px}\n'
   + '.s-flag{font-size:11px;color:' + t.accent + ';margin-left:2px}\n'
   + '.notes{padding:10px 36px;border-top:1px solid ' + t.border + ';font-size:10px;color:' + t.textMuted + ';line-height:1.6}\n'
-  + '.ft-l{font-size:9.5px;color:' + t.textMuted + ';letter-spacing:.05em}\n'
+  + '.ft-l{display:inline-flex;align-items:center;gap:8px;font-size:9.5px;color:' + t.textMuted + ';letter-spacing:.05em}\n'
+  + '.ft-logo{width:16px;height:16px;border-radius:4px;flex:none}\n'
   + '.ft-actions{display:flex;align-items:center;gap:8px}\n'
   + '.ft-btn{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:7px;font-size:10px;font-weight:600;letter-spacing:.04em;cursor:pointer;text-decoration:none;border:1px solid ' + t.borderAccent + ';background:' + t.surfaceAlt + ';color:' + t.textMuted + ';font-family:' + t.font + ';transition:all .15s ease;outline:none}\n'
   + '.ft-btn:hover{border-color:' + t.accent + ';color:' + t.accent + '}\n'
-  + '@media (max-width:720px){body{padding:16px 10px}.hdr{padding:20px 18px 16px}.stats{flex-wrap:wrap}.stat{flex:1 1 46%;min-width:120px}.donut-panel{flex-direction:column;align-items:flex-start;gap:16px;padding:18px 16px}.dp-legend{grid-template-columns:1fr 1fr;gap:10px 16px}.tbl-panel{overflow-x:auto}.hdr-title{font-size:22px}}\n'
-  + '@media print{body{background:' + t.bg + ' !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}.ft-actions{display:none !important}.card{box-shadow:none !important;width:100% !important;max-width:none !important}@page{margin:0;size:auto}}\n'
+  + '.tbl-panel:focus-visible,.tok-tbl-wrap:focus-visible,.heatmap-section:focus-visible{outline:2px solid ' + t.accent + ';outline-offset:-2px}\n'
+  + '.ft-btn:focus-visible{outline:2px solid ' + t.accent + ';outline-offset:2px;color:' + t.accent + '}\n'
+  + '@media (max-width:720px){.heatmap-section{overflow-x:auto}.footer{flex-wrap:wrap;gap:10px;padding:12px 16px}.notes{padding:10px 16px}.tok-section{padding:16px}.model-name-cell{max-width:180px}body{padding:16px 10px}.hdr{padding:20px 18px 16px}.stats{flex-wrap:wrap}.stat{flex:1 1 46%;min-width:120px}.donut-panel{flex-direction:column;align-items:flex-start;gap:16px;padding:18px 16px}.dp-legend{grid-template-columns:1fr 1fr;gap:10px 16px}.tbl-panel{overflow-x:auto}.hdr-title{font-size:22px}}\n'
+  + '@media print{body{padding:12px !important}.heatmap-section{zoom:.9}.tok-section,.heatmap-section,.notes,tr{break-inside:avoid}.tbl-panel,.tok-tbl-wrap{overflow:visible !important}body{background:' + t.bg + ' !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}.ft-actions{display:none !important}.card{box-shadow:none !important;width:100% !important;max-width:none !important}@page{margin:0;size:auto}}\n'
   + '</style>\n'
   + '</head>\n'
   + '<body>\n'
@@ -548,7 +645,7 @@ export function generateHTML(input) {
   + '  <div class="body">\n'
   + '    <div class="donut-panel">\n'
   + '      <div class="dp-chart">\n'
-  + '        <svg width="168" height="168" viewBox="0 0 140 140">\n'
+  + '        <svg width="168" height="168" viewBox="0 0 140 140" role="img" aria-label="' + (primary ? primary.label : 'Breakdown') + ' by tool: ' + legendRows.map(tool => tool.name + ' ' + Math.round((tool.metrics[primary ? primary.key : ''] || 0) / dTotal * 100) + '%').join(', ') + '">\n'
   + (donutSegs || '<circle cx="70" cy="70" r="56" fill="none" stroke="' + t.border + '" stroke-width="18"/>')
   + '\n          <circle cx="70" cy="70" r="30" fill="' + t.surface + '"/>\n'
   + '          <text x="70" y="64" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="8" fill="' + t.textMuted + '" font-weight="600" letter-spacing="1">TOTAL</text>\n'
@@ -560,17 +657,18 @@ export function generateHTML(input) {
   + '        <div class="dp-legend">' + donutLegend + '</div>\n'
   + '      </div>\n'
   + '    </div>\n'
-  + '    <div class="tbl-panel">\n'
+  + '    <div class="tbl-panel" tabindex="0" role="region" aria-label="Usage by tool and model">\n'
   + '      <table>\n'
-  + '        <thead><tr><th>Tool</th>' + colHeaders + '</tr></thead>\n'
+  + '        <thead><tr><th scope="col">Tool</th>' + colHeaders + '</tr></thead>\n'
   + '        <tbody>' + toolRows + '</tbody>\n'
   + '      </table>\n'
   + '    </div>\n'
   + '  </div>\n'
+  + (tokenHtml ? tokenHtml + '\n' : '')
   + (heatmapHtml ? heatmapHtml + '\n' : '')
   + footnoteHtml
   + '  <div class="footer">\n'
-  + '    <span class="ft-l">stackpulse \u00b7 github.com/KrishnaSathvik/stackpulse</span>\n'
+  + '    <span class="ft-l"><img class="ft-logo" src="' + LOGO_DATA_URI + '" width="16" height="16" alt=""/>StackPulse \u00b7 github.com/KrishnaSathvik/stackpulse</span>\n'
   + '    <div class="ft-actions">\n'
   + '      <button class="ft-btn" onclick="printCard()">\u2391 Save as PDF</button>\n'
   + '      <a class="ft-btn ft-share" href="' + shareUrl + '" target="_blank" rel="noopener">\u2717 Share on X</a>\n'

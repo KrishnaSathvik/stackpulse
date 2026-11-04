@@ -9,10 +9,15 @@ export function shot(name) {
   const [width, height] = sizes[name] || [];
   return { src, width, height };
 }
-export function Shot({ name, alt, eager = false, ...rest }) {
+// `mobile`: the same report captured at phone width (scripts/capture.mjs), used below 760px.
+export const PHONE = '(max-width: 760px)';
+export function Shot({ name, mobile, alt, eager = false, ...rest }) {
   const s = shot(name);
-  return <img src={s.src} width={s.width} height={s.height} alt={alt}
+  const img = <img src={s.src} width={s.width} height={s.height} alt={alt}
     loading={eager ? 'eager' : 'lazy'} decoding="async" fetchPriority={eager ? 'high' : undefined} {...rest} />;
+  if (!mobile || !shot(mobile).src) return img;
+  const m = shot(mobile);
+  return <picture><source media={PHONE} srcSet={m.src} width={m.width} height={m.height} />{img}</picture>;
 }
 
 // ── Theme (site light/dark; independent of report themes) ───────────────────
@@ -120,18 +125,23 @@ export function CommandCopy({ command, id }) {
 }
 
 // ── Terminal: replays real CLI screens captured through a terminal emulator ─
-export function Terminal({ part, from = 0, command = 'npx stackpulse', title = 'zsh — stackpulse', className = '', label }) {
-  const lines = capture[part].slice(from);
+export function Terminal({ part, from = 0, command = 'npx stackpulse', title = 'zsh — stackpulse', className = '', label, narrow = false }) {
+  // Phones get the same screen captured at 42 columns, where the CLI uses its stacked layout.
+  // `narrow` uses that capture at every width (for narrow columns such as the docs).
+  const variants = narrow && capture[`${part}Narrow`] ? [['only', capture[`${part}Narrow`]]]
+    : [['wide', capture[part]], ['narrow', capture[`${part}Narrow`]]].filter(([, l]) => l);
   return (
     <figure className={`terminal ${className}`} aria-label={label} style={{ margin: 0 }}>
       <div className="terminal__bar"><span className="dots" aria-hidden="true"><i /><i /><i /></span><span className="terminal__title">{title}</span></div>
-      <pre className="terminal__body">
+      {variants.map(([kind, lines]) => (
+      <pre key={kind} className={`terminal__body${variants.length > 1 ? ` terminal__body--${kind}` : ''}`}>
         {command && <div className="terminal__cmd"><b>~/Projects</b> $ {command}</div>}
-        {lines.map((spans, i) => (
+        {lines.slice(from).map((spans, i) => (
           <div key={i}>{spans.length ? spans.map((s, j) =>
             <span key={j} className={`t-${s.c}${s.b ? ' t-bold' : ''}`}>{s.t}</span>) : ' '}</div>
         ))}
       </pre>
+      ))}
     </figure>
   );
 }
@@ -209,10 +219,11 @@ export function useZoom() {
   const [item, setItem] = useState(null);
   useEffect(() => { if (item) ref.current?.showModal(); }, [item]);
   const dialog = (
-    <dialog ref={ref} className="zoom" onClose={() => setItem(null)} onClick={e => e.target === ref.current && ref.current.close()} aria-label={item?.alt}>
+    <dialog ref={ref} className={`zoom${item?.tall ? ' zoom--tall' : ''}`} onClose={() => setItem(null)} onClick={e => e.target === ref.current && ref.current.close()} aria-label={item?.alt}>
       {item && <>
         <button type="button" className="icon-btn zoom__close" onClick={() => ref.current.close()} aria-label="Close"><Icon name="close" size={18} /></button>
-        <img src={shot(item.name).src} alt={item.alt} />
+        {item.tall && <p className="zoom__hint" aria-hidden="true">Scroll down and sideways to see the whole report.</p>}
+        <Shot name={item.name} mobile={item.mobile} alt={item.alt} eager />
       </>}
     </dialog>
   );

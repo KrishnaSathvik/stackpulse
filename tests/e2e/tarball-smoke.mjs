@@ -5,7 +5,7 @@
 //
 //   node tests/e2e/tarball-smoke.mjs
 import { execFileSync, spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -13,6 +13,7 @@ import assert from 'node:assert/strict';
 
 const repo = fileURLToPath(new URL('../..', import.meta.url));
 const work = mkdtempSync(join(tmpdir(), 'sp-smoke-'));
+process.on('exit', () => rmSync(work, { recursive: true, force: true }));
 const isWin = process.platform === 'win32';
 // npm is a .cmd shim on Windows; arguments below are fixed strings, not user input.
 const npm = (args, cwd) => {
@@ -36,7 +37,20 @@ mkdirSync(app);
 npm(['init', '-y'], app);
 npm(['install', '--no-audit', '--no-fund', join(work, tgz)], app);
 const pkgDir = join(app, 'node_modules', 'stackpulse');
-for (const repoOnly of ['tests', 'prototypes', 'docs', 'website', 'src/collectors/sharded.js']) assert.ok(!existsSync(join(pkgDir, repoOnly)), `${repoOnly} must not ship`);
+for (const repoOnly of ['tests', 'prototypes', 'docs', 'src/collectors/sharded.js']) assert.ok(!existsSync(join(pkgDir, repoOnly)), `${repoOnly} must not ship`);
+
+step('package contents: README images only, nothing else from the website');
+// The README is rendered from the package on npm, so every local image it shows must
+// ship. Nothing else from website/ or assets/ may: no site source, no unused images.
+// The logo attribution travels with the logos.
+const readmeImages = new Set([...readFileSync(join(pkgDir, 'README.md'), 'utf-8').matchAll(/(?:src|srcset)="([^":]+)"/g)].map(m => m[1]));
+const ATTRIBUTION = 'website/src/assets/tools/SOURCES.md';
+const shipped = readdirSync(pkgDir, { recursive: true, withFileTypes: true })
+  .filter(e => e.isFile()).map(e => join(e.parentPath ?? e.path, e.name).slice(pkgDir.length + 1).replace(/\\/g, '/'))
+  .filter(f => /^(website|assets)\//.test(f));
+for (const f of shipped) assert.ok(readmeImages.has(f) || f === ATTRIBUTION, `${f} ships but the README does not use it`);
+for (const img of readmeImages) assert.ok(existsSync(join(pkgDir, img)), `README image ${img} is missing from the package`);
+assert.ok(shipped.includes(ATTRIBUTION), 'logo attribution ships with the logos');
 
 // Run through the published bin entry (the Node-version launcher), as npx would.
 const pkgJson = JSON.parse(readFileSync(join(pkgDir, 'package.json'), 'utf-8'));
